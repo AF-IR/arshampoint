@@ -70,11 +70,26 @@ export interface GenerateOptions {
   slideCount: number
   tone: string // رسمی، آموزشی، خلاقانه، ...
   language: 'fa' | 'en'
+  /* حالت بصری: offline = بدون تصویر خارجی (آیکون/نمودار)،
+   * image = درج تصویر به‌صورت لینک داخل اسلایدها */
+  visualMode: 'offline' | 'image'
+  /* لینک تصاویر اختیاری کاربر — در حالت image فقط از همین‌ها استفاده می‌شود */
+  imageLinks?: string[]
 }
 
 /* ── Prompt engineering ── */
 
-function systemPrompt(lang: 'fa' | 'en'): string {
+const IMAGE_SCHEMA_FA = `
+- در حالت تصویری، فیلد اختیاری "image" (لینک کامل تصویر https) برای اسلایدهای cover و bullets (هر آیتم) مجاز است و نوع اسلاید جدید "image" هم در دسترس است:
+    { "type": "image", "kicker": "برچسب", "title": "عنوان", "image": "لینک تصویر", "caption": "زیرنویس تصویر", "text": "توضیح یک دو جمله‌ای" }
+- لینک‌های تصویر باید از لیست لینک‌های داده‌شده انتخاب شوند؛ اگر لیست خالی بود، لینک به این شکل بساز: https://loremflickr.com/800/500/<کلیدواژه انگلیسی موضوع بدون فاصله> — کلیدواژه باید مرتبط با محتوای همان اسلاید باشد.`
+
+function systemPrompt(lang: 'fa' | 'en', visualMode: 'offline' | 'image' = 'offline'): string {
+  const imageFa = visualMode === 'image' ? IMAGE_SCHEMA_FA : ''
+  const imageEn =
+    visualMode === 'image'
+      ? `\n- In image mode, an optional "image" field (full https image URL) is allowed on cover and bullets slides, and a new slide type "image" is available: { "type": "image", "kicker": "...", "title": "...", "image": "https://...", "caption": "...", "text": "..." }. Use ONLY the provided image links; if the list is empty build https://loremflickr.com/800/500/<english-keyword> URLs.`
+      : '\n- ABSOLUTELY NO external images, no "image" fields, no <img>, no image URLs — slides use text, icons, shapes and charts only.'
   const fa = `تو یک طراح حرفه‌ای ارائه (پرزنتیشن) هستی که محتوای ساختاریافته برای اسلایدهای HTML تولید می‌کنی.
 خروجی تو باید «فقط و فقط» یک شیء JSON معتبر باشد — بدون هیچ متن اضافه، بدون markdown، بدون بک‌تیک.
 قوانین محتوایی:
@@ -82,7 +97,7 @@ function systemPrompt(lang: 'fa' | 'en'): string {
 - اسلاید اول حتماً type آن "cover" و اسلاید آخر حتماً "conclusion" باشد.
 - عنوان‌ها کوتاه و قدرتمند (حداکثر ۶۰ کاراکتر)، متن‌ها مختصر و مناسب اسلاید باشند (هر متن حداکثر ۲۴۰ کاراکتر).
 - از اعداد و آمار واقع‌گرایانه استفاده کن و در اسلاید stats مقدارها کوتاه باشند (مثل ۷۵٪ یا ۱.۲ میلیون).
-- بین ۵ تا ۸ آیتم در هر لیست قرار بده (نه بیشتر).
+- بین ۵ تا ۸ آیتم در هر لیست قرار بده (نه بیشتر).${imageFa}
 
 ساختار دقیق JSON:
 {
@@ -105,25 +120,40 @@ function systemPrompt(lang: 'fa' | 'en'): string {
   const en = `You are a professional presentation designer producing structured content for HTML slides.
 Return ONLY a valid JSON object — no extra text, no markdown, no backticks.
 Rules: short powerful titles (max 60 chars), concise slide copy (max 240 chars per text), 5-8 items per list, realistic statistics.
-First slide must be type "cover", last must be "conclusion".
+First slide must be type "cover", last must be "conclusion".${imageEn}
 JSON shape:
-{ "title": "...", "subtitle": "...", "author": "...", "language": "en", "slides": [ { "type": "cover" | "agenda" | "bullets" | "two-column" | "stats" | "quote" | "timeline" | "conclusion", ... } ] }
-Slide type fields: cover{badge,title,subtitle,author,date}, agenda{kicker,title,items[]}, bullets{kicker,title,items[{title,text}]}, two-column{kicker,title,columns[{heading,items[]}]}, stats{kicker,title,stats[{value,label,hint}],footnote}, quote{quote,author,role}, timeline{kicker,title,steps[{label,title,text}]}, conclusion{title,points[],cta}.
+{ "title": "...", "subtitle": "...", "author": "...", "language": "en", "slides": [ { "type": "cover" | "agenda" | "bullets" | "two-column" | "stats" | "quote" | "timeline" | "conclusion" | "image", ... } ] }
+Slide type fields: cover{badge,title,subtitle,author,date}, agenda{kicker,title,items[]}, bullets{kicker,title,items[{title,text}]}, two-column{kicker,title,columns[{heading,items[]}]}, stats{kicker,title,stats[{value,label,hint}],footnote}, quote{quote,author,role}, timeline{kicker,title,steps[{label,title,text}]}, conclusion{title,points[],cta}, image{kicker,title,image,caption,text}.
 Return JSON only.`
   return lang === 'fa' ? fa : en
 }
 
 function userPrompt(opts: GenerateOptions): string {
   const audience = opts.audience?.trim()
+  const imageNoteFa =
+    opts.visualMode === 'image'
+      ? opts.imageLinks && opts.imageLinks.length > 0
+        ? `حالت تصویری فعال است. فقط از این لینک‌های تصویر استفاده کن (به ترتیب، هر لینک حداکثر یک‌بار):
+${opts.imageLinks.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+        : 'حالت تصویری فعال است؛ برای اسلایدهای cover، image و بخشی از bullets لینک تصویر مرتبط بساز.'
+      : 'حالت آفلاین/متنی فعال است: هیچ تصویر خارجی درج نکن.'
+  const imageNoteEn =
+    opts.visualMode === 'image'
+      ? opts.imageLinks && opts.imageLinks.length > 0
+        ? `Image mode is ON. Use ONLY these image links (in order, each at most once):\n${opts.imageLinks.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+        : 'Image mode is ON; build topical image URLs for cover, image and some bullets slides.'
+      : 'Offline/text mode is ON: include NO external images.'
   const fa = `موضوع ارائه: «${opts.topic}»
 تعداد اسلایدها: دقیقاً ${opts.slideCount} اسلاید.
 ${audience ? `مخاطب: ${audience}.` : ''}
 لحن ارائه: ${opts.tone}.
+${imageNoteFa}
 برای این موضوع یک ارائه کامل و حرفه‌ای طراحی کن.`
   const en = `Presentation topic: "${opts.topic}"
 Number of slides: exactly ${opts.slideCount}.
 ${audience ? `Audience: ${audience}.` : ''}
 Tone: ${opts.tone}.
+${imageNoteEn}
 Design a complete professional deck.`
   return opts.language === 'fa' ? fa : en
 }
@@ -169,6 +199,14 @@ function cut(v: unknown, max: number = MAX_TEXT): string {
   return String(v ?? '').trim().slice(0, max)
 }
 
+/* لینک تصویر امن — فقط http(s)، حداکثر ۵۰۰ کاراکتر، بدون نویسه خطرناک */
+function safeImageUrl(v: unknown): string | undefined {
+  const s = String(v ?? '').trim()
+  if (!s || s.length > 500) return undefined
+  if (!/^https?:\/\/[\w\-._~:\/?#[\]@!$&'()*+,;=%]+$/i.test(s)) return undefined
+  return s
+}
+
 function normSlide(raw: Record<string, unknown>): DeckSlide | null {
   const type = String(raw.type ?? '')
   switch (type) {
@@ -180,7 +218,21 @@ function normSlide(raw: Record<string, unknown>): DeckSlide | null {
         subtitle: cut(raw.subtitle, 200) || undefined,
         author: cut(raw.author, 60) || undefined,
         date: cut(raw.date, 40) || undefined,
+        image: safeImageUrl(raw.image),
+        imageCaption: cut(raw.imageCaption ?? raw.caption, 120) || undefined,
       }
+    case 'image': {
+      const img = safeImageUrl(raw.image)
+      if (!img) return null // image slide without a valid image is useless
+      return {
+        type: 'image',
+        kicker: cut(raw.kicker, 40) || undefined,
+        title: cut(raw.title, 80),
+        image: img,
+        caption: cut(raw.caption, 140) || undefined,
+        text: cut(raw.text, 220) || undefined,
+      }
+    }
     case 'agenda':
       return {
         type: 'agenda',
@@ -196,7 +248,11 @@ function normSlide(raw: Record<string, unknown>): DeckSlide | null {
         items: Array.isArray(raw.items)
           ? raw.items.slice(0, 6).map((it) => {
               const o = (it ?? {}) as Record<string, unknown>
-              return { title: cut(o.title, 60) || undefined, text: cut(o.text, 240) }
+              return {
+                title: cut(o.title, 60) || undefined,
+                text: cut(o.text, 240),
+                image: safeImageUrl(o.image),
+              }
             }).filter((i) => i.text)
           : [],
       }
@@ -259,7 +315,11 @@ function normSlide(raw: Record<string, unknown>): DeckSlide | null {
   }
 }
 
-export function normalizeDeck(value: unknown, language: 'fa' | 'en'): DeckJSON | null {
+export function normalizeDeck(
+  value: unknown,
+  language: 'fa' | 'en',
+  visualMode: 'offline' | 'image' = 'image',
+): DeckJSON | null {
   if (!isValidDeck(value)) return null
   const raw = value as DeckJSON
   const slides = raw.slides
@@ -275,6 +335,16 @@ export function normalizeDeck(value: unknown, language: 'fa' | 'en'): DeckJSON |
       if (s.type === 'conclusion') return s.points.length >= 1
       return true
     })
+    /* حالت آفلاین: هیچ تصویر خارجی نباید در فایل بماند */
+    .map((s) => {
+      if (visualMode !== 'offline') return s
+      if (s.type === 'image') return null
+      if (s.type === 'cover') return { ...s, image: undefined, imageCaption: undefined }
+      if (s.type === 'bullets')
+        return { ...s, items: s.items.map((it) => ({ ...it, image: undefined })) }
+      return s
+    })
+    .filter((s): s is DeckSlide => s !== null)
   if (slides.length < 2) return null
   const cover = slides[0].type === 'cover' ? slides[0] : null
   const title = cover && 'title' in cover ? cover.title : raw.title
@@ -295,11 +365,11 @@ export async function generateDeckWithAI(opts: GenerateOptions): Promise<DeckJSO
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const content = await chat([
-        { role: 'system', content: systemPrompt(opts.language) },
+        { role: 'system', content: systemPrompt(opts.language, opts.visualMode) },
         { role: 'user', content: userPrompt(opts) },
       ])
 
-      let deck = normalizeDeck(extractJSON(content), opts.language)
+      let deck = normalizeDeck(extractJSON(content), opts.language, opts.visualMode)
       if (!deck) throw new Error('ساختار ارائه تولیدشده معتبر نبود. دوباره تلاش کنید.')
 
       // Ensure the count roughly matches the request (trim extras)

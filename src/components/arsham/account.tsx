@@ -99,7 +99,7 @@ export function AccountPage({ user }: { user: SessionUser }) {
             <p className="text-[#9AA0A6] mb-1.5">موتور هوش مصنوعی</p>
             <p className="font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-[#8AB4F8]" />
-              {status?.ai === 'http' ? `Z.ai API (${status.aiModel})` : 'SDK سندباکس'}
+              {status?.ai === 'http' ? `موتور هوش مصنوعی (${status.aiModel})` : 'SDK سندباکس'}
             </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[.03] p-4">

@@ -11,6 +11,9 @@ export interface DeckCoverSlide {
   subtitle?: string
   author?: string
   date?: string
+  /* حالت دارای تصویر — لینک تصویر پس‌زمینه/کنار عنوان */
+  image?: string
+  imageCaption?: string
 }
 
 export interface DeckAgendaSlide {
@@ -24,7 +27,7 @@ export interface DeckBulletsSlide {
   type: 'bullets'
   kicker?: string
   title: string
-  items: { title?: string; text: string }[]
+  items: { title?: string; text: string; image?: string }[]
 }
 
 export interface DeckTwoColumnSlide {
@@ -63,6 +66,16 @@ export interface DeckConclusionSlide {
   cta?: string
 }
 
+/* اسلاید تصویر تمام‌عرض — فقط در حالت «دارای تصویر» تولید می‌شود */
+export interface DeckImageSlide {
+  type: 'image'
+  kicker?: string
+  title: string
+  image: string
+  caption?: string
+  text?: string
+}
+
 export type DeckSlide =
   | DeckCoverSlide
   | DeckAgendaSlide
@@ -72,6 +85,7 @@ export type DeckSlide =
   | DeckQuoteSlide
   | DeckTimelineSlide
   | DeckConclusionSlide
+  | DeckImageSlide
 
 export interface DeckJSON {
   title: string

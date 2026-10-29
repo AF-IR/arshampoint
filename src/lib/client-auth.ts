@@ -106,12 +106,21 @@ function mapUser(u: { id: string; email?: string | null; user_metadata?: Record<
   return { id: u.id, email: u.email ?? '', name }
 }
 
+/* After a successful browser-side Supabase login, immediately hand the
+ * session to the server so it writes the 30-day signed httpOnly mirror
+ * cookie ("انتقال کوکی"). From then on the login survives even if the
+ * browser clears localStorage (Safari ITP, privacy mode, webviews). */
+function syncSessionCookie(): void {
+  apiFetch('/api/auth/me').catch(() => undefined)
+}
+
 export async function authLogin(email: string, password: string): Promise<AuthOutcome> {
   if (CLIENT_ENV_OK) {
     const sb = await supabaseBrowser()
     const { data, error } = await sb.auth.signInWithPassword({ email, password })
     if (error) return { ok: false, error: faAuthError(error.message) }
     if (!data.user) return { ok: false, error: 'ورود ناموفق بود.' }
+    syncSessionCookie()
     return { ok: true, user: mapUser(data.user) }
   }
   return postToApi('/api/auth/login', { email, password })
@@ -139,6 +148,7 @@ export async function authRegister(
       }
     }
     if (!data.user) return { ok: false, error: 'ثبت‌نام ناموفق بود.' }
+    syncSessionCookie()
     return { ok: true, user: mapUser(data.user) }
   }
   return postToApi('/api/auth/register', { name: name || undefined, email, password })
@@ -167,19 +177,47 @@ export async function authLogout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
 }
 
-/** Restore the session on page load (both modes). */
+/** Restore the session on page load (both modes).
+ *
+ * Order of preference:
+ *  1. Supabase session from localStorage (persistSession) → verified via /api/auth/me
+ *     (expired access tokens are refreshed explicitly — supabase-js's own
+ *      auto-refresh timer may not have fired yet right after boot)
+ *  2. 30-day cookie mirror (set by /api/auth/me on every successful auth) —
+ *     survives browsers that clear localStorage on exit, Safari ITP,
+ *     privacy webviews, and refresh-token failures. */
 export async function restoreSession(): Promise<SessionUser | null> {
   if (CLIENT_ENV_OK) {
-    const sb = await supabaseBrowser()
-    const { data } = await sb.auth.getSession()
-    if (!data.session) return null
     try {
-      const res = await apiFetch('/api/auth/me')
-      if (!res.ok) return null
-      const d = await res.json()
-      return (d?.user as SessionUser) ?? null
+      const sb = await supabaseBrowser()
+      let session = (await sb.auth.getSession()).data.session
+      if (session) {
+        const expiresAtMs = (session.expires_at ?? 0) * 1000
+        if (expiresAtMs < Date.now() + 30_000) {
+          /* token expired while the browser was closed — force a refresh
+           * so /api/auth/me receives a VALID bearer and re-issues the cookie */
+          try {
+            const refreshed = await sb.auth.refreshSession()
+            if (refreshed.data.session) session = refreshed.data.session
+          } catch {
+            /* refresh failed (e.g. rotated refresh token) — cookie path below
+             * still restores the user */
+          }
+        }
+      }
+      if (session) {
+        try {
+          const res = await apiFetch('/api/auth/me')
+          if (res.ok) {
+            const d = await res.json()
+            if (d?.user) return d.user as SessionUser
+          }
+        } catch {
+          /* fall through to cookie restore */
+        }
+      }
     } catch {
-      return null
+      /* fall through to cookie restore */
     }
   }
   try {

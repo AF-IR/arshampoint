@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
     const accent: DeckAccent = (DECK_ACCENTS as readonly string[]).includes(accentInput)
       ? (accentInput as DeckAccent)
       : 'blue'
+    /* حالت بصری: آفلاین (متنی) یا دارای تصویر (درج لینک تصاویر) */
+    const visualMode = body?.visualMode === 'image' ? 'image' : 'offline'
+    const imageLinks: string[] | undefined =
+      visualMode === 'image' && Array.isArray(body?.imageLinks)
+        ? body.imageLinks
+            .map((u: unknown) => String(u ?? '').trim())
+            .filter((u: string) => /^https?:\/\/\S+$/.test(u) && u.length <= 500)
+            .slice(0, 12)
+        : undefined
 
     if (topic.length < 3) {
       return NextResponse.json(
@@ -48,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1) AI generates structured DeckJSON (Z.ai API key or bundled SDK)
-    const deck = await generateDeckWithAI({ topic, audience, slideCount, tone, language })
+    const deck = await generateDeckWithAI({ topic, audience, slideCount, tone, language, visualMode, imageLinks })
 
     // 2) Render standalone HTML from DeckJSON
     const html = generateDeckHTML(deck, { accent })

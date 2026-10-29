@@ -148,3 +148,84 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+ * آرشام پوینت — typography scale & dynamic aurora background
+ * ═══════════════════════════════════════════════════════════════ */
+
+/* فونت‌های بزرگ‌تر — همه اندازه‌های rem محور تیلویند یک‌پله بزرگ می‌شوند */
+html {
+  font-size: 17.5px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  /* ریتم عمودی بهتر برای متن فارسی */
+  line-height: 1.8;
+  overflow-x: hidden;
+}
+
+/* ── پس‌زمینه پویا: هاله‌های رنگی متحرک روی زمینه تیره ──
+ * دو لایه ثابت (fixed) با انیمیشن transform سبکِ GPU؛
+ * پنل‌های محتوایی روی این هاله‌ها می‌نشینند. */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: -25%;
+  z-index: -1;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* لایه اول: هاله‌های اصلی آبی/بنفش/سبز */
+body::before {
+  background:
+    radial-gradient(38rem 28rem at 20% 18%, rgba(66, 133, 244, 0.22), transparent 62%),
+    radial-gradient(34rem 26rem at 82% 14%, rgba(197, 138, 249, 0.16), transparent 62%),
+    radial-gradient(36rem 28rem at 70% 82%, rgba(129, 201, 149, 0.11), transparent 62%),
+    radial-gradient(30rem 24rem at 12% 76%, rgba(138, 180, 248, 0.13), transparent 62%);
+  animation: aurora-drift-a 30s ease-in-out infinite alternate;
+}
+
+/* لایه دوم: حرکت آهسته‌تر و معکوس برای عمق بیشتر */
+body::after {
+  background:
+    radial-gradient(26rem 22rem at 58% 38%, rgba(138, 180, 248, 0.10), transparent 60%),
+    radial-gradient(24rem 20rem at 30% 62%, rgba(255, 183, 95, 0.07), transparent 60%);
+  animation: aurora-drift-b 46s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift-a {
+  0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate3d(-2.5%, 2%, 0) scale(1.08) rotate(1.6deg); }
+  100% { transform: translate3d(2.5%, -2%, 0) scale(1.03) rotate(-1.4deg); }
+}
+
+@keyframes aurora-drift-b {
+  0%   { transform: translate3d(0, 0, 0) scale(1.04) rotate(0.8deg); }
+  100% { transform: translate3d(-3%, -2.5%, 0) scale(1) rotate(-1deg); }
+}
+
+/* احترام به تنظیم کاهش حرکت کاربران */
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* انتخاب متن با رنگ برند */
+::selection {
+  background: rgba(138, 180, 248, 0.32);
+  color: #ffffff;
+}

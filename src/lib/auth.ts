@@ -1,8 +1,9 @@
 import crypto from 'crypto'
 import { cookies } from 'next/headers'
-import { db } from '@/lib/db'
 import { getAppMode } from '@/lib/mode'
 import { verifySupabaseToken } from '@/lib/supabase-server'
+/* NOTE: auth.ts is intentionally Prisma-free — /api/auth/* must boot on
+ * serverless (Vercel) with no SQLite dependency. */
 
 const SECRET =
   process.env.AUTH_SECRET || 'zslide-dev-secret-change-me-in-production-9f2a'
@@ -34,6 +35,7 @@ export function verifyPassword(password: string, stored: string): boolean {
 interface TokenPayload {
   sub: string
   email: string
+  name?: string
   iat: number
   exp: number
 }
@@ -55,12 +57,17 @@ function sign(data: string): string {
   return b64url(crypto.createHmac('sha256', SECRET).update(data).digest())
 }
 
-export function signToken(userId: string, email: string): string {
+export function signToken(
+  userId: string,
+  email: string,
+  name?: string | null
+): string {
   const header = b64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
   const now = Math.floor(Date.now() / 1000)
   const payload: TokenPayload = {
     sub: userId,
     email,
+    name: name || undefined,
     iat: now,
     exp: now + TOKEN_TTL_SECONDS,
   }
@@ -92,9 +99,10 @@ export async function setSessionCookie(token: string) {
   store.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: false, // sandbox preview runs behind proxy; set true in HTTPS production
+    // Vercel is always HTTPS; sandbox preview runs behind a plain proxy
+    secure: process.env.VERCEL === '1' || process.env.AUTH_COOKIE_SECURE === 'true',
     path: '/',
-    maxAge: TOKEN_TTL_SECONDS,
+    maxAge: TOKEN_TTL_SECONDS, // 30 days — persistent login
   })
 }
 
@@ -116,11 +124,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!token) return null
   const payload = verifyToken(token)
   if (!payload) return null
-  const user = await db.user.findUnique({
-    where: { id: payload.sub },
-    select: { id: true, email: true, name: true, createdAt: true },
-  })
-  return user
+  /* The signed JWT is the source of truth — no DB lookup. This keeps
+   * cookie sessions alive on serverless and lets the Supabase
+   * cookie-mirror (set by /api/auth/me) restore a returning visitor
+   * even when the browser cleared localStorage. */
+  return {
+    id: payload.sub,
+    email: payload.email,
+    name: payload.name ?? null,
+    createdAt: new Date(),
+  }
 }
 
 /* ── Mode-aware request authentication ─────────────────────────
@@ -139,9 +152,10 @@ export async function getUserFromRequest(req: Request): Promise<SessionUser | nu
     if (bearer) {
       const su = await verifySupabaseToken(bearer)
       if (su) return { id: su.id, email: su.email, name: su.name, createdAt: new Date() }
-      return null
+      /* PERSISTENT LOGIN FIX: an expired/invalid Supabase access token
+       * (e.g. browser reopened after >1h) must NOT kill the request —
+       * fall back to the 30-day signed mirror cookie before giving up. */
     }
-    // local cookie fallback (e.g. iframe loads before client token wiring)
     return getSessionUser()
   }
 

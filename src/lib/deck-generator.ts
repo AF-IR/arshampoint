@@ -154,10 +154,35 @@ function foot(deck: DeckJSON, idx: number, total: number): string {
   return `<footer class="foot"><span>${esc(deck.title)}</span><span class="n">${n} / ${t}</span></footer>`
 }
 
+/* ── تصویر با جایگزین امن: اگر لینک اصلی شکست، تصویر رزرو نمایش داده می‌شود ── */
+function imgTag(url: string, alt: string, seed: string, style = ''): string {
+  const fallback = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/500`
+  const safeAlt = esc(alt).slice(0, 120)
+  return `<img src="${esc(url)}" alt="${safeAlt}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${fallback}'" style="object-fit:cover;width:100%;height:100%;display:block;${style}">`
+}
+
 function renderCover(s: Extract<DeckSlide, { type: 'cover' }>, deck: DeckJSON): string {
   const meta: string[] = []
   if (s.author) meta.push(s.author)
   if (s.date) meta.push(s.date)
+  /* حالت دارای تصویر: جلد دونیمه با تصویر کنار عنوان */
+  if (s.image) {
+    return `
+  <div style="flex:1;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;min-height:0">
+    <div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:right;gap:22px;min-width:0">
+      ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
+      <h1 style="font-size:52px;font-weight:900;line-height:1.3">${esc(s.title)}</h1>
+      <div style="width:110px;height:6px;border-radius:99px;background:var(--a-grad)"></div>
+      ${s.subtitle ? `<p style="font-size:20px;color:var(--ink-2);line-height:1.9">${esc(s.subtitle)}</p>` : ''}
+      ${meta.length ? `<div style="display:flex;gap:12px;margin-top:4px">${meta.map((m) => `<span class="chip chip-plain">${esc(m)}</span>`).join('')}</div>` : ''}
+    </div>
+    <div style="position:relative;height:74%;min-height:0;border-radius:26px;overflow:hidden;box-shadow:var(--shadow-lg)">
+      ${imgTag(s.image, s.title, 'cover', 'border-radius:26px')}
+      ${s.imageCaption ? `<span style="position:absolute;bottom:0;right:0;left:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;padding:38px 22px 16px;font-size:13px;direction:rtl;text-align:right">${esc(s.imageCaption)}</span>` : ''}
+    </div>
+  </div>
+  ${foot(deck, 0, deck.slides.length)}`
+  }
   return `
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:26px">
     ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
@@ -188,17 +213,17 @@ function renderAgenda(s: Extract<DeckSlide, { type: 'agenda' }>, deck: DeckJSON,
 
 function renderBullets(s: Extract<DeckSlide, { type: 'bullets' }>, deck: DeckJSON, idx: number): string {
   const rows = s.items
-    .map((it) =>
+    .map((it, i) =>
       it.title
         ? `<div class="card" style="display:flex;gap:16px;padding:18px 22px;align-items:flex-start">
-            <span class="dot" style="margin-top:9px"></span>
+            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.title, 'b' + i)}</span>` : ''}
             <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
               <span style="font-size:17px;font-weight:700">${esc(it.title)}</span>
               <span style="font-size:15px;color:var(--ink-2);line-height:1.85">${esc(it.text)}</span>
             </div>
           </div>`
         : `<div style="display:flex;gap:16px;padding:14px 22px;align-items:flex-start" class="card-tint">
-            <span class="dot" style="margin-top:9px"></span>
+            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.text.slice(0, 60), 'b' + i)}</span>` : ''}
             <span style="font-size:16.5px;line-height:1.9">${esc(it.text)}</span>
           </div>`
     )
@@ -303,6 +328,20 @@ function renderConclusion(s: Extract<DeckSlide, { type: 'conclusion' }>, deck: D
   ${foot(deck, idx, deck.slides.length)}`
 }
 
+function renderImage(s: Extract<DeckSlide, { type: 'image' }>, deck: DeckJSON, idx: number): string {
+  return `
+  <div style="flex:1;display:grid;grid-template-columns:1.15fr .85fr;gap:0;min-height:0;border-radius:22px;overflow:hidden;position:relative">
+    <div style="position:relative;min-height:0">${imgTag(s.image, s.title, 'slide')}</div>
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:16px;padding:40px 42px;background:linear-gradient(160deg,var(--a-tint),transparent 70%);border-right:1px solid var(--line);min-width:0">
+      ${s.kicker ? `<div class="kicker"><span class="dot"></span>${esc(s.kicker)}</div>` : ''}
+      <h1 style="font-size:30px;font-weight:900;line-height:1.5">${esc(s.title)}</h1>
+      ${s.text ? `<p style="font-size:16.5px;color:var(--ink-2);line-height:2">${esc(s.text)}</p>` : ''}
+      ${s.caption ? `<span style="font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="3" stroke="var(--ink-3)" stroke-width="2"/><circle cx="9" cy="10" r="2" fill="var(--ink-3)"/><path d="M5 18l4.5-5 3.5 4 3-3 3 4" stroke="var(--ink-3)" stroke-width="2" stroke-linejoin="round"/></svg>${esc(s.caption)}</span>` : ''}
+    </div>
+  </div>
+  ${foot(deck, idx, deck.slides.length)}`
+}
+
 function renderSlide(s: DeckSlide, deck: DeckJSON, idx: number): string {
   switch (s.type) {
     case 'cover': return renderCover(s, deck)
@@ -311,6 +350,7 @@ function renderSlide(s: DeckSlide, deck: DeckJSON, idx: number): string {
     case 'two-column': return renderTwoColumn(s, deck, idx)
     case 'stats': return renderStats(s, deck, idx)
     case 'quote': return renderQuote(s, deck, idx)
+    case 'image': return renderImage(s, deck, idx)
     case 'timeline': return renderTimeline(s, deck, idx)
     case 'conclusion': return renderConclusion(s, deck, idx)
     default: return renderBullets({ type: 'bullets', title: String((s as { title?: string }).title ?? deck.title), items: [] }, deck, idx)
@@ -429,7 +469,7 @@ export function generateDeckHTML(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(deck.title)}</title>
-<meta name="generator" content="ZSlide — AI Presentation Generator (Z.ai)">
+<meta name="generator" content="آرشام پوینت (Arsham Point) — ساخت پاورپوینت فارسی با هوش مصنوعی">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&family=Outfit:wght@100..900&display=swap" rel="stylesheet">

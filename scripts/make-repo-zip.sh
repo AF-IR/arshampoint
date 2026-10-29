@@ -19,6 +19,9 @@ cp -r "$ROOT/supabase" "$STAGE/supabase"
 cp -r "$ROOT/public"   "$STAGE/public"
 mkdir -p "$STAGE/scripts"
 cp "$ROOT/scripts/seed-demo.ts" "$STAGE/scripts/seed-demo.ts"
+cp "$ROOT/scripts/og-card.html" "$STAGE/scripts/og-card.html"
+cp "$ROOT/scripts/regen-icons.cjs" "$STAGE/scripts/regen-icons.cjs" 2>/dev/null || true
+cp "$ROOT/scripts/make-repo-zip.sh" "$STAGE/scripts/make-repo-zip.sh"
 
 # ── root config & docs ──
 for f in package.json bun.lock next.config.ts tsconfig.json \

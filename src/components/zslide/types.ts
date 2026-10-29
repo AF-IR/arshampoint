@@ -22,6 +22,12 @@ export interface GeneratePayload {
   slideCount: number
   language: 'fa' | 'en'
   accent: string
+  /* حالت بصری:
+   *  - offline: فقط متن، آیکون و نمودار (بدون هیچ تصویر خارجی)
+   *  - image  : تصاویر مرتبط به‌صورت لینک داخل اسلایدها درج می‌شود */
+  visualMode: 'offline' | 'image'
+  /* لینک تصاویر اختیاری کاربر (یک لینک در هر خط) — فقط در حالت image */
+  imageLinks?: string[]
 }
 
 export const TONES = [
