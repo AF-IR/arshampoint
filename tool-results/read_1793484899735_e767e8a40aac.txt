@@ -1,0 +1,627 @@
+     1→import type { DeckJSON, DeckSlide, DeckAccent, DeckLanguage } from '@/lib/deck-types'
+     2→
+     3→/* ═════════ DeckHTML Generator ═════════
+     4→   Renders DeckJSON as a standalone single-file HTML presentation
+     5→   (RTL Persian, 1280x720 canvas, midnight/daylight dual theme,
+     6→   keyboard + touch navigation, overview, print support). */
+     7→
+     8→const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
+     9→const faNum = (n: number | string): string =>
+    10→  String(n).replace(/\d/g, (d) => FA_DIGITS[Number(d)])
+    11→
+    12→function esc(s: unknown): string {
+    13→  return String(s ?? '')
+    14→    .replace(/&/g, '&amp;')
+    15→    .replace(/</g, '&lt;')
+    16→    .replace(/>/g, '&gt;')
+    17→    .replace(/"/g, '&quot;')
+    18→    .replace(/'/g, '&#39;')
+    19→}
+    20→
+    21→/* ── Accent palettes (dark + light) ── */
+    22→interface AccentPal {
+    23→  primary: string
+    24→  deep: string
+    25→  tint: string
+    26→  tintB: string
+    27→  glow: string
+    28→  grad: string
+    29→}
+    30→const ACCENTS: Record<DeckAccent, { dark: AccentPal; light: AccentPal }> = {
+    31→  blue: {
+    32→    dark: { primary: '#8AB4F8', deep: '#669DF6', tint: 'rgba(138,180,248,.15)', tintB: 'rgba(138,180,248,.16)', glow: 'rgba(138,180,248,.09)', grad: 'linear-gradient(90deg,#8AB4F8,#4285F4)' },
+    33→    light: { primary: '#1A73E8', deep: '#185ABC', tint: 'rgba(26,115,232,.09)', tintB: 'rgba(26,115,232,.12)', glow: 'rgba(26,115,232,.07)', grad: 'linear-gradient(90deg,#4285F4,#1A73E8)' },
+    34→  },
+    35→  green: {
+    36→    dark: { primary: '#81C995', deep: '#5BB974', tint: 'rgba(129,201,149,.15)', tintB: 'rgba(129,201,149,.18)', glow: 'rgba(129,201,149,.09)', grad: 'linear-gradient(90deg,#81C995,#34A853)' },
+    37→    light: { primary: '#188038', deep: '#0D652D', tint: 'rgba(24,128,56,.09)', tintB: 'rgba(24,128,56,.12)', glow: 'rgba(24,128,56,.06)', grad: 'linear-gradient(90deg,#34A853,#188038)' },
+    38→  },
+    39→  orange: {
+    40→    dark: { primary: '#FFB75F', deep: '#F5A03C', tint: 'rgba(255,183,95,.15)', tintB: 'rgba(255,183,95,.18)', glow: 'rgba(255,183,95,.10)', grad: 'linear-gradient(90deg,#FFB75F,#F29900)' },
+    41→    light: { primary: '#E8710A', deep: '#B06000', tint: 'rgba(232,113,10,.10)', tintB: 'rgba(232,113,10,.13)', glow: 'rgba(232,113,10,.07)', grad: 'linear-gradient(90deg,#F9AB00,#E8710A)' },
+    42→  },
+    43→  purple: {
+    44→    dark: { primary: '#C58AF9', deep: '#A142F4', tint: 'rgba(197,138,249,.16)', tintB: 'rgba(197,138,249,.20)', glow: 'rgba(197,138,249,.10)', grad: 'linear-gradient(90deg,#C58AF9,#A142F4)' },
+    45→    light: { primary: '#9334E6', deep: '#7627BB', tint: 'rgba(147,52,230,.10)', tintB: 'rgba(147,52,230,.13)', glow: 'rgba(147,52,230,.07)', grad: 'linear-gradient(90deg,#A142F4,#9334E6)' },
+    46→  },
+    47→  red: {
+    48→    dark: { primary: '#F28B82', deep: '#EA6A60', tint: 'rgba(242,139,130,.15)', tintB: 'rgba(242,139,130,.18)', glow: 'rgba(242,139,130,.10)', grad: 'linear-gradient(90deg,#F28B82,#D93025)' },
+    49→    light: { primary: '#D93025', deep: '#A50E0E', tint: 'rgba(217,48,37,.09)', tintB: 'rgba(217,48,37,.12)', glow: 'rgba(217,48,37,.06)', grad: 'linear-gradient(90deg,#EA4335,#D93025)' },
+    50→  },
+    51→  teal: {
+    52→    dark: { primary: '#78D9EC', deep: '#4CC4DA', tint: 'rgba(120,217,236,.15)', tintB: 'rgba(120,217,236,.18)', glow: 'rgba(120,217,236,.09)', grad: 'linear-gradient(90deg,#78D9EC,#00ACC1)' },
+    53→    light: { primary: '#00838F', deep: '#005F6B', tint: 'rgba(0,131,143,.09)', tintB: 'rgba(0,131,143,.12)', glow: 'rgba(0,131,143,.06)', grad: 'linear-gradient(90deg,#00ACC1,#00838F)' },
+    54→  },
+    55→  indigo: {
+    56→    dark: { primary: '#A3B0F7', deep: '#7C8CF8', tint: 'rgba(163,176,247,.15)', tintB: 'rgba(163,176,247,.18)', glow: 'rgba(163,176,247,.09)', grad: 'linear-gradient(90deg,#A3B0F7,#5C6BC0)' },
+    57→    light: { primary: '#3949AB', deep: '#2C3A93', tint: 'rgba(63,81,181,.09)', tintB: 'rgba(63,81,181,.12)', glow: 'rgba(63,81,181,.07)', grad: 'linear-gradient(90deg,#5C6BC0,#3949AB)' },
+    58→  },
+    59→  gold: {
+    60→    dark: { primary: '#FDD663', deep: '#F9C233', tint: 'rgba(253,214,99,.15)', tintB: 'rgba(253,214,99,.18)', glow: 'rgba(253,214,99,.10)', grad: 'linear-gradient(90deg,#FDD663,#F9AB00)' },
+    61→    light: { primary: '#B26A00', deep: '#8D5100', tint: 'rgba(178,106,0,.09)', tintB: 'rgba(178,106,0,.12)', glow: 'rgba(178,106,0,.06)', grad: 'linear-gradient(90deg,#F9AB00,#B26A00)' },
+    62→  },
+    63→  rose: {
+    64→    dark: { primary: '#F7A8C4', deep: '#F06292', tint: 'rgba(247,168,196,.15)', tintB: 'rgba(247,168,196,.18)', glow: 'rgba(247,168,196,.10)', grad: 'linear-gradient(90deg,#F7A8C4,#EC407A)' },
+    65→    light: { primary: '#C2185B', deep: '#880E4F', tint: 'rgba(194,24,91,.09)', tintB: 'rgba(194,24,91,.12)', glow: 'rgba(194,24,91,.06)', grad: 'linear-gradient(90deg,#EC407A,#C2185B)' },
+    66→  },
+    67→  lime: {
+    68→    dark: { primary: '#C8E06E', deep: '#A8CC3A', tint: 'rgba(200,224,110,.15)', tintB: 'rgba(200,224,110,.18)', glow: 'rgba(200,224,110,.10)', grad: 'linear-gradient(90deg,#C8E06E,#9ECC2E)' },
+    69→    light: { primary: '#689F38', deep: '#4E7A28', tint: 'rgba(104,159,56,.10)', tintB: 'rgba(104,159,56,.13)', glow: 'rgba(104,159,56,.06)', grad: 'linear-gradient(90deg,#9CCC65,#689F38)' },
+    70→  },
+    71→  bronze: {
+    72→    dark: { primary: '#E0A878', deep: '#C88A54', tint: 'rgba(224,168,120,.15)', tintB: 'rgba(224,168,120,.18)', glow: 'rgba(224,168,120,.10)', grad: 'linear-gradient(90deg,#E0A878,#B5763A)' },
+    73→    light: { primary: '#A05A2C', deep: '#7A421E', tint: 'rgba(160,90,44,.10)', tintB: 'rgba(160,90,44,.13)', glow: 'rgba(160,90,44,.06)', grad: 'linear-gradient(90deg,#C0703C,#A05A2C)' },
+    74→  },
+    75→  slate: {
+    76→    dark: { primary: '#BDC5CF', deep: '#9AA6B5', tint: 'rgba(189,197,207,.14)', tintB: 'rgba(189,197,207,.17)', glow: 'rgba(189,197,207,.09)', grad: 'linear-gradient(90deg,#BDC5CF,#8A97A8)' },
+    77→    light: { primary: '#455A64', deep: '#2F4550', tint: 'rgba(69,90,100,.09)', tintB: 'rgba(69,90,100,.12)', glow: 'rgba(69,90,100,.06)', grad: 'linear-gradient(90deg,#607D8B,#455A64)' },
+    78→  },
+    79→}
+    80→
+    81→/* ── Base CSS (theme-agnostic + neutral vars) ── */
+    82→const BASE_CSS = `
+    83→*{box-sizing:border-box;margin:0;padding:0}
+    84→html,body{height:100%;overflow:hidden;background:var(--page);direction:rtl;font-family:'Vazirmatn',Tahoma,'Segoe UI',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+    85→:root{
+    86→  --bg:#15171C;--bg-tint:#191C22;--surface:#1E2127;
+    87→  --ink:#E8EAED;--ink-2:#C4C7CC;--ink-3:#9AA0A6;--on-accent:#0B0C0F;
+    88→  --line:rgba(255,255,255,.10);--line-2:rgba(255,255,255,.16);
+    89→  --ov:rgba(255,255,255,.06);--ov2:rgba(255,255,255,.12);
+    90→  --page:#0A0B0E;--glass:rgba(12,13,16,.78);--pill:rgba(20,22,27,.92);
+    91→  --shadow:0 1px 2px rgba(0,0,0,.45),0 14px 34px rgba(0,0,0,.5);
+    92→  --shadow-lg:0 24px 70px rgba(0,0,0,.6);
+    93→  --slide-g1:var(--a-glow);--slide-g2:rgba(242,139,130,.05);
+    94→  --g-red:#F28B82;--g-yellow:#FDD663;--g-green:#81C995;
+    95→  --num:'Outfit','Vazirmatn',sans-serif;
+    96→}
+    97→html.light{
+    98→  --bg:#F6F8FC;--bg-tint:#EEF2F8;--surface:#FFFFFF;
+    99→  --ink:#202124;--ink-2:#3C4043;--ink-3:#5F6368;--on-accent:#FFFFFF;
+   100→  --line:rgba(0,0,0,.10);--line-2:rgba(0,0,0,.16);
+   101→  --ov:rgba(0,0,0,.04);--ov2:rgba(0,0,0,.08);
+   102→  --page:#E8ECF3;--glass:rgba(255,255,255,.85);--pill:rgba(255,255,255,.95);
+   103→  --shadow:0 1px 2px rgba(60,64,67,.18),0 14px 34px rgba(60,64,67,.14);
+   104→  --shadow-lg:0 24px 70px rgba(60,64,67,.28);
+   105→  --slide-g2:rgba(234,67,53,.04);
+   106→  --g-red:#D93025;--g-yellow:#E8A200;--g-green:#188038;
+   107→}
+   108→html.tswap *,html.tswap *::before,html.tswap *::after{transition:background-color .42s ease,color .42s ease,border-color .42s ease,box-shadow .42s ease,opacity .3s ease!important}
+   109→#stage{position:fixed;inset:0 0 64px 0;display:grid;place-items:center;overflow:hidden}
+   110→.shell{position:absolute;width:1280px;height:720px;transform:scale(var(--s,1));transform-origin:center center;visibility:hidden}
+   111→.shell.active{visibility:visible}
+   112→.slide{position:relative;width:1280px;height:720px;overflow:hidden;display:flex;flex-direction:column;padding:52px 60px;background:radial-gradient(900px 420px at 85% -10%,var(--slide-g1),transparent 60%),radial-gradient(700px 380px at 0% 110%,var(--slide-g2),transparent 60%),var(--bg);animation:slideIn .5s ease both}
+   113→@keyframes slideIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+   114→@media (prefers-reduced-motion:reduce){.slide{animation:none}}
+   115→.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+   116→.card-tint{background:var(--bg-tint);border:1px solid var(--line);border-radius:20px}
+   117→.card-soft{background:var(--a-tint);border:1px solid var(--a-tintB);border-radius:20px}
+   118→.chip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 16px;font-weight:700;font-size:13.5px;background:var(--a-tint);color:var(--a-primary);border:1px solid var(--a-tintB)}
+   119→.chip-plain{background:var(--ov);color:var(--ink-2);border:1px solid var(--line)}
+   120→.dot{width:10px;height:10px;border-radius:999px;display:inline-block;background:var(--a-primary);box-shadow:0 0 10px var(--a-tintB)}
+   121→.kicker{font-size:13.5px;font-weight:700;color:var(--a-primary);letter-spacing:.02em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+   122→h1.title{font-size:38px;font-weight:800;line-height:1.3;color:var(--ink)}
+   123→.head{flex-shrink:0;margin-bottom:26px}
+   124→.head .rule{width:64px;height:5px;border-radius:99px;background:var(--a-grad);margin-top:14px}
+   125→.body{flex:1;min-height:0;display:flex;flex-direction:column}
+   126→.foot{flex-shrink:0;margin-top:22px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--ink-3)}
+   127→.foot .n{font-family:var(--num);font-weight:600}
+   128→.grad-text{background:var(--a-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+   129→.num{font-family:var(--num)}
+   130→
+   131→/* ── Control bar ── */
+   132→#bar{position:fixed;right:0;bottom:0;left:0;height:64px;display:flex;align-items:center;gap:14px;padding:0 22px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:40;direction:ltr}
+   133→#bar button{all:unset;cursor:pointer;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--ink-2);font-size:17px;transition:background .2s,color .2s}
+   134→#bar button:hover{background:var(--ov2);color:var(--ink)}
+   135→#bar button:disabled{opacity:.28;cursor:default}
+   136→#counter{font-family:var(--num);font-weight:600;font-size:14px;color:var(--ink-2);min-width:64px;text-align:center;direction:ltr}
+   137→#credit{all:unset;cursor:pointer;margin:0 2px;padding:6px 13px;border-radius:10px;font-size:12px;font-weight:700;color:var(--ink-3);border:1px solid var(--line);transition:color .2s,border-color .2s;direction:rtl;white-space:nowrap}
+   138→#credit:hover{color:var(--a-primary);border-color:var(--a-tintB)}
+   139→#dots{display:flex;gap:7px;flex:1;justify-content:center;align-items:center;overflow-x:auto;padding:4px}
+   140→#dots::-webkit-scrollbar{display:none}
+   141→#dots .d{width:9px;height:9px;border-radius:99px;background:var(--ov2);cursor:pointer;transition:all .25s;flex-shrink:0}
+   142→#dots .d.on{background:var(--a-primary);width:26px;box-shadow:0 0 8px var(--a-tintB)}
+   143→#prog{position:absolute;top:-2px;right:0;height:2.5px;background:var(--a-grad);border-radius:99px;transition:width .35s ease;width:0}
+   144→.sep{width:1px;height:22px;background:var(--line)}
+   145→
+   146→/* ── Overview ── */
+   147→#ovWrap{position:fixed;inset:0;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:60;display:none;overflow:auto;padding:46px 60px}
+   148→#ovWrap.open{display:block}
+   149→#ovGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;max-width:1240px;margin:0 auto}
+   150→#ovWrap h3{color:var(--ink-2);font-size:15px;margin:0 auto 18px;max-width:1240px;font-weight:700}
+   151→.ov-item{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;transition:all .2s;display:flex;gap:12px;align-items:flex-start;color:var(--ink)}
+   152→.ov-item:hover{border-color:var(--a-primary);transform:translateY(-2px);box-shadow:var(--shadow)}
+   153→.ov-item.cur{border-color:var(--a-primary);background:var(--a-tint)}
+   154→.ov-item .i{font-family:var(--num);font-weight:700;font-size:13px;color:var(--a-primary);background:var(--a-tint);border-radius:9px;padding:3px 9px;flex-shrink:0}
+   155→.ov-item .t{font-size:13.5px;font-weight:600;line-height:1.6}
+   156→
+   157→/* ── Toast ── */
+   158→#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--pill);border:1px solid var(--line);color:var(--ink);padding:10px 22px;border-radius:999px;font-size:13.5px;font-weight:600;opacity:0;transition:all .3s;z-index:80;pointer-events:none;box-shadow:var(--shadow-lg)}
+   159→#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+   160→
+   161→@media print{
+   162→  html,body{overflow:visible;background:#fff}
+   163→  #bar,#ovWrap,#toast{display:none!important}
+   164→  #stage{position:static;inset:auto}
+   165→  .shell{position:relative;visibility:visible!important;transform:none!important;page-break-after:always;break-after:page;margin:0 auto}
+   166→  @page{size:1280px 720px;margin:0}
+   167→}
+   168→`
+   169→
+   170→function accentCss(accent: DeckAccent, light: boolean): string {
+   171→  const p = ACCENTS[accent][light ? 'light' : 'dark']
+   172→  return `:root${light ? '.light' : ''}{--a-primary:${p.primary};--a-deep:${p.deep};--a-tint:${p.tint};--a-tintB:${p.tintB};--a-glow:${p.glow};--a-grad:${p.grad}}`
+   173→}
+   174→
+   175→/* ── Slide body renderers ── */
+   176→
+   177→function head(slide: { kicker?: string; title: string }, deck: DeckJSON): string {
+   178→  const kicker = slide.kicker
+   179→    ? `<div class="kicker"><span class="dot"></span>${esc(slide.kicker)}</div>`
+   180→    : ''
+   181→  return `<header class="head">${kicker}<h1 class="title">${esc(slide.title)}</h1><div class="rule"></div></header>`
+   182→}
+   183→
+   184→function foot(deck: DeckJSON, idx: number, total: number): string {
+   185→  const lang = deck.language
+   186→  const n = lang === 'fa' ? faNum(idx + 1) : String(idx + 1)
+   187→  const t = lang === 'fa' ? faNum(total) : String(total)
+   188→  return `<footer class="foot"><span>${esc(deck.title)}</span><span class="n">${n} / ${t}</span></footer>`
+   189→}
+   190→
+   191→/* ── تصویر با جایگزین امن: اگر لینک اصلی شکست، تصویر رزرو نمایش داده می‌شود ── */
+   192→function imgTag(url: string, alt: string, seed: string, style = ''): string {
+   193→  const fallback = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/500`
+   194→  const safeAlt = esc(alt).slice(0, 120)
+   195→  return `<img src="${esc(url)}" alt="${safeAlt}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${fallback}'" style="object-fit:cover;width:100%;height:100%;display:block;${style}">`
+   196→}
+   197→
+   198→/* ── کتابخانه نمادهای غیرتصویری (SVG درون‌خطی — بدون هیچ فایل خارجی) ──
+   199→   هوش مصنوعی کلید نماد را انتخاب می‌کند؛ اینجا به SVG تبدیل می‌شود.
+   200→   همه مسیرها در viewBox ۲۴×۲۴ با stroke=currentColor رندر می‌شوند. */
+   201→const ICON_BODIES: Record<string, string> = {
+   202→  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9" fill="currentColor" stroke="none"/>',
+   203→  chart: '<path d="M3 21h18"/><path d="M6 21v-8"/><path d="M11 21V8"/><path d="M16 21v-5"/><path d="M21 21V5"/>',
+   204→  trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+   205→  lightbulb: '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.4c.7.6 1 1.6 1 2.6h6c0-1 .3-2 1-2.6A6 6 0 0 0 12 3z"/>',
+   206→  shield: '<path d="M12 3l7 3v5.2c0 4.4-2.9 7.8-7 9.8-4.1-2-7-5.4-7-9.8V6z"/><path d="M9.3 12l1.9 1.9 3.5-3.7"/>',
+   207→  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.4 2"/>',
+   208→  users: '<circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.7 5.5-4.7s4.9 1.7 5.5 4.7"/><circle cx="16.8" cy="9.5" r="2.6"/><path d="M15.8 14.6c2.5.3 4.3 1.8 4.9 4.4"/>',
+   209→  zap: '<path d="M13 2L4.5 13.5H11L9.5 22 19.5 9.5H13z"/>',
+   210→  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+   211→  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 3.8 5.6 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.6-3.8-9S9.5 5.5 12 3z"/>',
+   212→  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.6 15.6L21 21"/>',
+   213→  book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+   214→  flag: '<path d="M5 21V4"/><path d="M5 4h12.5l-2.6 4 2.6 4H5"/>',
+   215→  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7"/><path d="M3 12.5h18"/>',
+   216→  heart: '<path d="M12 20.5C6.6 16.6 3 13.3 3 9.6 3 7.1 5 5 7.5 5c1.8 0 3.4 1 4.5 2.6C13.1 6 14.7 5 16.5 5 19 5 21 7.1 21 9.6c0 3.7-3.6 7-9 10.9z"/>',
+   217→  pin: '<path d="M12 21s-7-5.4-7-11a7 7 0 0 1 14 0c0 5.6-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+   218→  mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7.5l8.5 6 8.5-6"/>',
+   219→  calendar: '<rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/>',
+   220→}
+   221→
+   222→function svgIcon(name: string, size = 18, extraStyle = ''): string {
+   223→  const body = ICON_BODIES[name] ?? `<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>`
+   224→  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;${extraStyle}">${body}</svg>`
+   225→}
+   226→
+   227→function renderCover(s: Extract<DeckSlide, { type: 'cover' }>, deck: DeckJSON): string {
+   228→  const meta: string[] = []
+   229→  if (s.author) meta.push(s.author)
+   230→  if (s.date) meta.push(s.date)
+   231→  /* حالت دارای تصویر: جلد دونیمه با تصویر کنار عنوان */
+   232→  if (s.image) {
+   233→    return `
+   234→  <div style="flex:1;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;min-height:0">
+   235→    <div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:right;gap:22px;min-width:0">
+   236→      ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
+   237→      <h1 style="font-size:52px;font-weight:900;line-height:1.3">${esc(s.title)}</h1>
+   238→      <div style="width:110px;height:6px;border-radius:99px;background:var(--a-grad)"></div>
+   239→      ${s.subtitle ? `<p style="font-size:20px;color:var(--ink-2);line-height:1.9">${esc(s.subtitle)}</p>` : ''}
+   240→      ${meta.length ? `<div style="display:flex;gap:12px;margin-top:4px">${meta.map((m) => `<span class="chip chip-plain">${esc(m)}</span>`).join('')}</div>` : ''}
+   241→    </div>
+   242→    <div style="position:relative;height:74%;min-height:0;border-radius:26px;overflow:hidden;box-shadow:var(--shadow-lg)">
+   243→      ${imgTag(s.image, s.title, 'cover', 'border-radius:26px')}
+   244→      ${s.imageCaption ? `<span style="position:absolute;bottom:0;right:0;left:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;padding:38px 22px 16px;font-size:13px;direction:rtl;text-align:right">${esc(s.imageCaption)}</span>` : ''}
+   245→    </div>
+   246→  </div>
+   247→  ${foot(deck, 0, deck.slides.length)}`
+   248→  }
+   249→  return `
+   250→  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:26px">
+   251→    ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
+   252→    <h1 style="font-size:64px;font-weight:900;line-height:1.25;max-width:1000px">${esc(s.title)}</h1>
+   253→    <div style="width:110px;height:6px;border-radius:99px;background:var(--a-grad)"></div>
+   254→    ${s.subtitle ? `<p style="font-size:22px;color:var(--ink-2);line-height:1.9;max-width:860px">${esc(s.subtitle)}</p>` : ''}
+   255→    ${meta.length ? `<div style="display:flex;gap:12px;margin-top:6px">${meta.map((m) => `<span class="chip chip-plain">${esc(m)}</span>`).join('')}</div>` : ''}
+   256→  </div>
+   257→  ${foot(deck, 0, deck.slides.length)}`
+   258→}
+   259→
+   260→function renderAgenda(s: Extract<DeckSlide, { type: 'agenda' }>, deck: DeckJSON, idx: number): string {
+   261→  const lang = deck.language
+   262→  const two = s.items.length > 4
+   263→  const items = s.items
+   264→    .map((it, i) => {
+   265→      const n = lang === 'fa' ? faNum(i + 1) : String(i + 1)
+   266→      return `<div class="card" style="display:flex;align-items:center;gap:18px;padding:20px 24px">
+   267→        <span class="num" style="width:44px;height:44px;border-radius:14px;background:var(--a-tint);border:1px solid var(--a-tintB);color:var(--a-primary);font-weight:800;font-size:19px;display:grid;place-items:center;flex-shrink:0">${n}</span>
+   268→        <span style="font-size:17.5px;font-weight:600;line-height:1.7">${esc(it)}</span>
+   269→      </div>`
+   270→    })
+   271→    .join('')
+   272→  return `${head(s, deck)}
+   273→  <div class="body"><section style="flex:1;display:grid;grid-template-columns:${two ? '1fr 1fr' : '1fr'};gap:16px;align-content:${two ? 'stretch' : 'start'}">${items}</section></div>
+   274→  ${foot(deck, idx, deck.slides.length)}`
+   275→}
+   276→
+   277→function renderBullets(s: Extract<DeckSlide, { type: 'bullets' }>, deck: DeckJSON, idx: number): string {
+   278→  /* حالت فشرده: با ۵ آیتم به بالا ردیف‌ها جمع‌تر می‌شوند تا هیچ کارتی با فوتر تداخل نکند */
+   279→  const tight = s.items.length >= 5
+   280→  const rows = s.items
+   281→    .map((it, i) => {
+   282→      const icon = it.icon && ICON_BODIES[it.icon] ? svgIcon(it.icon, tight ? 17 : 20) : ''
+   283→      const iconChip = icon
+   284→        ? `<span style="width:${tight ? 32 : 40}px;height:${tight ? 32 : 40}px;border-radius:${tight ? 10 : 13}px;background:var(--a-tint);border:1px solid var(--a-tintB);color:var(--a-primary);display:grid;place-items:center;flex-shrink:0">${icon}</span>`
+   285→        : `<span class="dot" style="margin-top:${tight ? 9 : 12}px;flex-shrink:0"></span>`
+   286→      return it.title
+   287→        ? `<div class="card" style="display:flex;gap:${tight ? 12 : 16}px;padding:${tight ? '11px 20px' : '18px 22px'};align-items:flex-start">
+   288→            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.title, 'b' + i)}</span>` : iconChip}
+   289→            <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+   290→              <span style="font-size:${tight ? 15.5 : 17}px;font-weight:700">${esc(it.title)}</span>
+   291→              <span style="font-size:${tight ? 13.8 : 15}px;color:var(--ink-2);line-height:${tight ? 1.65 : 1.85}">${esc(it.text)}</span>
+   292→            </div>
+   293→          </div>`
+   294→        : `<div style="display:flex;gap:${tight ? 12 : 16}px;padding:${tight ? '9px 20px' : '14px 22px'};align-items:flex-start" class="card-tint">
+   295→            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.text.slice(0, 60), 'b' + i)}</span>` : iconChip}
+   296→            <span style="font-size:${tight ? 14.5 : 16.5}px;line-height:${tight ? 1.7 : 1.9}">${esc(it.text)}</span>
+   297→          </div>`
+   298→    })
+   299→    .join('')
+   300→  return `${head(s, deck)}
+   301→  <div class="body"><section style="flex:1;display:flex;flex-direction:column;gap:${tight ? 8 : 12}px;justify-content:center;min-height:0">${rows}</section></div>
+   302→  ${foot(deck, idx, deck.slides.length)}`
+   303→}
+   304→
+   305→function renderTwoColumn(s: Extract<DeckSlide, { type: 'two-column' }>, deck: DeckJSON, idx: number): string {
+   306→  const cols = s.columns
+   307→    .map(
+   308→      (c, ci) => `<section class="${ci % 2 === 0 ? 'card' : 'card-soft'}" style="padding:26px 28px;display:flex;flex-direction:column;gap:14px;min-height:0">
+   309→        <h2 style="font-size:20px;font-weight:800;color:${ci % 2 === 0 ? 'var(--a-primary)' : 'var(--ink)'};display:flex;align-items:center;gap:10px">
+   310→          <span class="dot"></span>${esc(c.heading)}
+   311→        </h2>
+   312→        <div style="display:flex;flex-direction:column;gap:11px">
+   313→          ${c.items
+   314→            .map(
+   315→              (it) => `<div style="display:flex;gap:10px;align-items:flex-start">
+   316→                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="margin-top:5px;flex-shrink:0"><path d="M20 6L9 17l-5-5" stroke="var(--a-primary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   317→                <span style="font-size:15px;line-height:1.8;color:var(--ink-2)">${esc(it)}</span>
+   318→              </div>`
+   319→            )
+   320→            .join('')}
+   321→        </div>
+   322→      </section>`
+   323→    )
+   324→    .join('')
+   325→  return `${head(s, deck)}
+   326→  <div class="body"><section style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:20px;min-height:0">${cols}</section></div>
+   327→  ${foot(deck, idx, deck.slides.length)}`
+   328→}
+   329→
+   330→function renderStats(s: Extract<DeckSlide, { type: 'stats' }>, deck: DeckJSON, idx: number): string {
+   331→  const lang = deck.language
+   332→  const fix = (v: string) => (lang === 'fa' ? v.replace(/\d/g, (d) => FA_DIGITS[Number(d)]) : v)
+   333→  const cards = s.stats
+   334→    .map(
+   335→      (st) => `<div class="card" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:30px 18px;text-align:center">
+   336→        <span class="num grad-text" style="font-size:52px;font-weight:800;line-height:1.1">${esc(fix(st.value))}</span>
+   337→        <span style="font-size:15.5px;font-weight:700">${esc(st.label)}</span>
+   338→        ${st.hint ? `<span style="font-size:12.5px;color:var(--ink-3);line-height:1.7">${esc(st.hint)}</span>` : ''}
+   339→      </div>`
+   340→    )
+   341→    .join('')
+   342→  return `${head(s, deck)}
+   343→  <div class="body">
+   344→    <section style="flex:1;display:flex;gap:18px;align-items:stretch;min-height:0">${cards}</section>
+   345→    ${s.footnote ? `<div class="card-soft" style="margin-top:18px;padding:14px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0"><span class="dot" style="flex-shrink:0"></span><span style="font-size:14px;font-weight:600;line-height:1.7">${esc(s.footnote)}</span></div>` : ''}
+   346→  </div>
+   347→  ${foot(deck, idx, deck.slides.length)}`
+   348→}
+   349→
+   350→function renderQuote(s: Extract<DeckSlide, { type: 'quote' }>, deck: DeckJSON, idx: number): string {
+   351→  return `
+   352→  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:30px;padding:0 70px">
+   353→    <span class="grad-text" style="font-size:90px;font-weight:900;line-height:.6;font-family:Georgia,serif">&#187;</span>
+   354→    <p style="font-size:30px;font-weight:700;line-height:2;max-width:980px">${esc(s.quote)}</p>
+   355→    <div style="width:80px;height:5px;border-radius:99px;background:var(--a-grad)"></div>
+   356→    ${s.author ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="font-size:17px;font-weight:800">${esc(s.author)}</span>${s.role ? `<span style="font-size:13.5px;color:var(--ink-3)">${esc(s.role)}</span>` : ''}</div>` : ''}
+   357→  </div>
+   358→  ${foot(deck, idx, deck.slides.length)}`
+   359→}
+   360→
+   361→function renderTimeline(s: Extract<DeckSlide, { type: 'timeline' }>, deck: DeckJSON, idx: number): string {
+   362→  const lang = deck.language
+   363→  const steps = s.steps
+   364→    .map((st, i) => {
+   365→      const n = lang === 'fa' ? faNum(st.label) : st.label
+   366→      return `<div style="flex:1;display:flex;flex-direction:column;gap:14px;min-width:0">
+   367→        <div style="display:flex;align-items:center;gap:10px">
+   368→          <span class="num" style="width:42px;height:42px;border-radius:999px;background:var(--a-grad);color:var(--on-accent);font-weight:800;font-size:16px;display:grid;place-items:center;flex-shrink:0">${esc(n)}</span>
+   369→          ${i < s.steps.length - 1 ? `<div style="flex:1;height:2.5px;background:var(--a-tintB);border-radius:99px"></div>` : ''}
+   370→        </div>
+   371→        <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:6px;flex:1">
+   372→          <span style="font-size:16px;font-weight:800">${esc(st.title)}</span>
+   373→          <span style="font-size:13.5px;color:var(--ink-2);line-height:1.8">${esc(st.text)}</span>
+   374→        </div>
+   375→      </div>`
+   376→    })
+   377→    .join('')
+   378→  return `${head(s, deck)}
+   379→  <div class="body"><section style="flex:1;display:flex;gap:16px;align-items:stretch;padding-top:8px">${steps}</section></div>
+   380→  ${foot(deck, idx, deck.slides.length)}`
+   381→}
+   382→
+   383→function renderConclusion(s: Extract<DeckSlide, { type: 'conclusion' }>, deck: DeckJSON, idx: number): string {
+   384→  const points = s.points
+   385→    .map(
+   386→      (p) => `<div class="card" style="display:flex;gap:14px;padding:16px 22px;align-items:center">
+   387→        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="11" fill="var(--a-tint)"/><path d="M8 12.5l2.5 2.5L16 9.5" stroke="var(--a-primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   388→        <span style="font-size:16px;font-weight:600;line-height:1.8">${esc(p)}</span>
+   389→      </div>`
+   390→    )
+   391→    .join('')
+   392→  return `${head(s, deck)}
+   393→  <div class="body" style="justify-content:center;gap:22px">
+   394→    <section style="display:flex;flex-direction:column;gap:12px">${points}</section>
+   395→    ${s.cta ? `<div style="display:flex;justify-content:center"><span style="background:var(--a-grad);color:var(--on-accent);border-radius:999px;padding:13px 34px;font-size:15.5px;font-weight:800;box-shadow:var(--shadow)">${esc(s.cta)}</span></div>` : ''}
+   396→  </div>
+   397→  ${foot(deck, idx, deck.slides.length)}`
+   398→}
+   399→
+   400→function renderImage(s: Extract<DeckSlide, { type: 'image' }>, deck: DeckJSON, idx: number): string {
+   401→  return `
+   402→  <div style="flex:1;display:grid;grid-template-columns:1.15fr .85fr;gap:0;min-height:0;border-radius:22px;overflow:hidden;position:relative">
+   403→    <div style="position:relative;min-height:0">${imgTag(s.image, s.title, 'slide')}</div>
+   404→    <div style="display:flex;flex-direction:column;justify-content:center;gap:16px;padding:40px 42px;background:linear-gradient(160deg,var(--a-tint),transparent 70%);border-right:1px solid var(--line);min-width:0">
+   405→      ${s.kicker ? `<div class="kicker"><span class="dot"></span>${esc(s.kicker)}</div>` : ''}
+   406→      <h1 style="font-size:30px;font-weight:900;line-height:1.5">${esc(s.title)}</h1>
+   407→      ${s.text ? `<p style="font-size:16.5px;color:var(--ink-2);line-height:2">${esc(s.text)}</p>` : ''}
+   408→      ${s.caption ? `<span style="font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="3" stroke="var(--ink-3)" stroke-width="2"/><circle cx="9" cy="10" r="2" fill="var(--ink-3)"/><path d="M5 18l4.5-5 3.5 4 3-3 3 4" stroke="var(--ink-3)" stroke-width="2" stroke-linejoin="round"/></svg>${esc(s.caption)}</span>` : ''}
+   409→    </div>
+   410→  </div>
+   411→  ${foot(deck, idx, deck.slides.length)}`
+   412→}
+   413→
+   414→/* ── اسلاید جداکننده بخش: توقف بصری بین فصل‌های ارائه ── */
+   415→function renderSection(s: Extract<DeckSlide, { type: 'section' }>, deck: DeckJSON, idx: number): string {
+   416→  return `
+   417→  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:22px">
+   418→    ${s.kicker ? `<span class="chip"><span class="dot"></span>${esc(s.kicker)}</span>` : ''}
+   419→    <h1 style="font-size:54px;font-weight:900;line-height:1.35;max-width:980px">${esc(s.title)}</h1>
+   420→    <div style="width:96px;height:5px;border-radius:99px;background:var(--a-grad)"></div>
+   421→    ${s.subtitle ? `<p style="font-size:19px;color:var(--ink-2);line-height:1.9;max-width:800px">${esc(s.subtitle)}</p>` : ''}
+   422→  </div>
+   423→  ${foot(deck, idx, deck.slides.length)}`
+   424→}
+   425→
+   426→/* ── مقایسه دوستونی با نماد تیک/ضربدر (تمام SVG — بدون تصویر) ── */
+   427→function renderComparison(s: Extract<DeckSlide, { type: 'comparison' }>, deck: DeckJSON, idx: number): string {
+   428→  const col = (c: { heading: string; points: string[] }, good: boolean): string => {
+   429→    const color = good ? 'var(--g-green)' : 'var(--g-red)'
+   430→    const bg = good ? 'rgba(129,201,149,.16)' : 'rgba(242,139,130,.16)'
+   431→    const mark = good
+   432→      ? '<path d="M20 6L9 17l-5-5"/>'
+   433→      : '<path d="M18 6L6 18"/><path d="M6 6l12 12"/>'
+   434→    const rows = c.points
+   435→      .map(
+   436→        (p) => `<div style="display:flex;gap:10px;align-items:flex-start">
+   437→          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="margin-top:5px;flex-shrink:0"><path d="${mark}" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   438→          <span style="font-size:15px;line-height:1.8;color:var(--ink-2)">${esc(p)}</span>
+   439→        </div>`
+   440→      )
+   441→      .join('')
+   442→    return `<section class="card" style="padding:26px 28px;display:flex;flex-direction:column;gap:14px;min-height:0;border-top:3px solid ${color}">
+   443→      <h2 style="font-size:20px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:11px">
+   444→        <span style="width:30px;height:30px;border-radius:999px;display:grid;place-items:center;background:${bg};flex-shrink:0">
+   445→          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="${mark}" stroke="${color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   446→        </span>${esc(c.heading)}
+   447→      </h2>
+   448→      <div style="display:flex;flex-direction:column;gap:11px">${rows}</div>
+   449→    </section>`
+   450→  }
+   451→  return `${head(s, deck)}
+   452→  <div class="body"><section style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:20px;min-height:0">${col(s.left, true)}${col(s.right, false)}</section></div>
+   453→  ${foot(deck, idx, deck.slides.length)}`
+   454→}
+   455→
+   456→function renderSlide(s: DeckSlide, deck: DeckJSON, idx: number): string {
+   457→  switch (s.type) {
+   458→    case 'cover': return renderCover(s, deck)
+   459→    case 'agenda': return renderAgenda(s, deck, idx)
+   460→    case 'bullets': return renderBullets(s, deck, idx)
+   461→    case 'two-column': return renderTwoColumn(s, deck, idx)
+   462→    case 'stats': return renderStats(s, deck, idx)
+   463→    case 'quote': return renderQuote(s, deck, idx)
+   464→    case 'image': return renderImage(s, deck, idx)
+   465→    case 'timeline': return renderTimeline(s, deck, idx)
+   466→    case 'conclusion': return renderConclusion(s, deck, idx)
+   467→    case 'section': return renderSection(s, deck, idx)
+   468→    case 'comparison': return renderComparison(s, deck, idx)
+   469→    default: return renderBullets({ type: 'bullets', title: String((s as { title?: string }).title ?? deck.title), items: [] }, deck, idx)
+   470→  }
+   471→}
+   472→
+   473→/* ── Player JS (navigation, theme, overview, fullscreen, swipe) ── */
+   474→function playerScript(total: number, lang: DeckLanguage): string {
+   475→  const fa = lang === 'fa'
+   476→  const labels = fa
+   477→    ? { overview: 'نمای کلی (کلید O)', theme: 'تغییر تم روشن/تیره', fs: 'تمام‌صفحه', next: 'اسلاید بعدی', prev: 'اسلاید قبلی', end: 'پایان ارائه', start: 'اسلاید اول' }
+   478→    : { overview: 'Overview (key O)', theme: 'Toggle light/dark theme', fs: 'Fullscreen', next: 'Next slide', prev: 'Previous slide', end: 'End of deck', start: 'First slide' }
+   479→  return `
+   480→(function(){
+   481→  var N=${total},cur=0;
+   482→  var FA='۰۱۲۳۴۵۶۷۸۹';
+   483→  function fa(n){return String(n).replace(/\\d/g,function(d){return FA[d]})}
+   484→  var shells=[].slice.call(document.querySelectorAll('.shell'));
+   485→  var dotsW=document.getElementById('dots'),counter=document.getElementById('counter'),prog=document.getElementById('prog');
+   486→  var bPrev=document.getElementById('bPrev'),bNext=document.getElementById('bNext');
+   487→  var ovWrap=document.getElementById('ovWrap'),stage=document.getElementById('stage');
+   488→  function fmt(n){return ${fa ? 'fa(n)' : 'String(n)'}} /* eslint-disable-line */
+   489→  function fmtN(n){${fa ? 'return fa(n)' : 'return String(n)'}}
+   490→  dotsW.innerHTML='';
+   491→  for(var i=0;i<N;i++){(function(i){var d=document.createElement('span');d.className='d';d.title=fmtN(i+1);d.onclick=function(){go(i)};dotsW.appendChild(d)})(i)}
+   492→  var dots=[].slice.call(dotsW.children);
+   493→  function go(i){
+   494→    if(i<0)i=0;if(i>N-1)i=N-1;
+   495→    if(i===cur&&shells[cur].className.indexOf('active')>-1){}
+   496→    shells.forEach(function(s,j){s.classList.toggle('active',j===i)});
+   497→    dots.forEach(function(d,j){d.classList.toggle('on',j===i)});
+   498→    counter.textContent=fmtN(i+1)+' / '+fmtN(N);
+   499→    prog.style.width=((i+1)/N*100)+'%';
+   500→    bPrev.disabled=i===0;bNext.disabled=i===N-1;
+   501→    cur=i;
+   502→  }
+   503→  function fit(){
+   504→    var vw=window.innerWidth,vh=window.innerHeight-64;
+   505→    var s=Math.min(vw/1280,vh/720);
+   506→    document.documentElement.style.setProperty('--s',s);
+   507→  }
+   508→  window.addEventListener('resize',fit);fit();
+   509→  bPrev.onclick=function(){go(cur-1)};
+   510→  bNext.onclick=function(){go(cur+1)};
+   511→  document.getElementById('bTheme').onclick=function(){
+   512→    document.documentElement.classList.add('tswap');
+   513→    var el=document.documentElement;el.classList.toggle('light');
+   514→    try{localStorage.setItem('zslide-theme',el.classList.contains('light')?'light':'dark')}catch(e){}
+   515→    setTimeout(function(){el.classList.remove('tswap')},480);
+   516→  };
+   517→  document.getElementById('bFs').onclick=function(){
+   518→    if(document.fullscreenElement){document.exitFullscreen()}
+   519→    else{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}
+   520→  };
+   521→  var ov=document.getElementById('ovWrap');
+   522→  function buildOv(){
+   523→    var g=document.getElementById('ovGrid');g.innerHTML='';
+   524→    var h=document.createElement('h3');h.textContent='${esc(labels.overview)}';g.parentNode.insertBefore(h,g);
+   525→    shells.forEach(function(sh,i){
+   526→      var card=document.createElement('div');card.className='ov-item'+(i===cur?' cur':'');
+   527→      var t=sh.querySelector('[data-ovtitle]');
+   528→      var title=t?t.getAttribute('data-ovtitle'):(''+(i+1));
+   529→      card.innerHTML='<span class="i">'+fmtN(i+1)+'</span><span class="t"></span>';
+   530→      card.querySelector('.t').textContent=title;
+   531→      card.onclick=function(){go(i);ov.classList.remove('open')};
+   532→      g.appendChild(card);
+   533→    });
+   534→  }
+   535→  function toggleOv(){if(ov.classList.contains('open')){ov.classList.remove('open')}else{buildOv();ov.classList.add('open')}}
+   536→  document.getElementById('bOv').onclick=toggleOv;
+   537→  ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('open')});
+   538→  document.addEventListener('keydown',function(e){
+   539→    if(e.key==='ArrowLeft'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1)}
+   540→    else if(e.key==='ArrowRight'||e.key==='PageUp'){e.preventDefault();go(cur-1)}
+   541→    else if(e.key==='ArrowDown'){e.preventDefault();go(cur+1)}
+   542→    else if(e.key==='ArrowUp'){e.preventDefault();go(cur-1)}
+   543→    else if(e.key==='Home'){e.preventDefault();go(0)}
+   544→    else if(e.key==='End'){e.preventDefault();go(N-1)}
+   545→    else if(e.key==='o'||e.key==='O'){toggleOv()}
+   546→    else if(e.key==='Escape'){ov.classList.remove('open')}
+   547→    else if(e.key==='f'||e.key==='F'){document.getElementById('bFs').click()}
+   548→  });
+   549→  var tx=null;
+   550→  stage.addEventListener('touchstart',function(e){tx=e.touches[0].clientX},{passive:true});
+   551→  stage.addEventListener('touchend',function(e){
+   552→    if(tx===null)return;var dx=e.changedTouches[0].clientX-tx;
+   553→    if(Math.abs(dx)>50){ if(dx>0)go(cur+1); else go(cur-1); }
+   554→    tx=null;
+   555→  },{passive:true});
+   556→  try{if(localStorage.getItem('zslide-theme')==='light')document.documentElement.classList.add('light')}catch(e){}
+   557→  go(0);
+   558→})();`
+   559→}
+   560→
+   561→/* ── Main entry ──
+   562→ * opts.branding (default true): shows the «آرشام پوینت» credit link in the
+   563→ * control bar. Pro-plan decks are rendered with branding:false. */
+   564→export function generateDeckHTML(
+   565→  deck: DeckJSON,
+   566→  opts: { accent?: DeckAccent; branding?: boolean } = {}
+   567→): string {
+   568→  const accent: DeckAccent = opts.accent ?? 'blue'
+   569→  const branding = opts.branding !== false
+   570→  const lang = deck.language ?? 'fa'
+   571→  const dir = lang === 'fa' ? 'rtl' : 'ltr'
+   572→  const total = deck.slides.length
+   573→
+   574→  const shells = deck.slides
+   575→    .map((s, i) => {
+   576→      const ovTitle =
+   577→        s.type === 'quote' ? (s.author ?? s.quote.slice(0, 60)) : ((s as { title?: string }).title ?? deck.title)
+   578→      return `<div class="shell" data-i="${i}"><div class="slide" data-ovtitle="${esc(ovTitle)}">${renderSlide(s, deck, i)}</div></div>`
+   579→    })
+   580→    .join('\n')
+   581→
+   582→  return `<!DOCTYPE html>
+   583→<html dir="${dir}" lang="${lang}">
+   584→<head>
+   585→<meta charset="UTF-8">
+   586→<meta name="viewport" content="width=device-width, initial-scale=1.0">
+   587→<title>${esc(deck.title)}</title>
+   588→<meta name="generator" content="آرشام پوینت (Arsham Point) — ساخت پاورپوینت فارسی با هوش مصنوعی">
+   589→<link rel="preconnect" href="https://fonts.googleapis.com">
+   590→<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   591→<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+   592→<style>
+   593→${BASE_CSS}
+   594→${accentCss(accent, false)}
+   595→${accentCss(accent, true)}
+   596→</style>
+   597→</head>
+   598→<body>
+   599→<main id="stage" aria-label="${esc(deck.title)}">
+   600→${shells}
+   601→</main>
+   602→<nav id="bar" aria-label="کنترل ارائه">
+   603→  <div id="prog"></div>
+   604→  <button id="bPrev" title="${esc(labelsSafe(lang).prev)}" aria-label="${esc(labelsSafe(lang).prev)}">&#8250;</button>
+   605→  <div id="counter" aria-live="polite">1 / ${lang === 'fa' ? faNum(total) : total}</div>
+   606→  <button id="bNext" title="${esc(labelsSafe(lang).next)}" aria-label="${esc(labelsSafe(lang).next)}">&#8249;</button>
+   607→  <div class="sep"></div>
+   608→  <div id="dots" role="tablist" aria-label="اسلایدها"></div>
+   609→  <div class="sep"></div>
+   610→  <button id="bOv" title="${esc(labelsSafe(lang).overview)}" aria-label="${esc(labelsSafe(lang).overview)}">&#8862;</button>
+   611→  <button id="bTheme" title="${esc(labelsSafe(lang).theme)}" aria-label="${esc(labelsSafe(lang).theme)}">&#9681;</button>
+   612→  <button id="bFs" title="${esc(labelsSafe(lang).fs)}" aria-label="${esc(labelsSafe(lang).fs)}">&#9974;</button>
+   613→  ${branding ? `<a id="credit" href="https://apoint.ir" target="_blank" rel="noopener" title="${lang === 'fa' ? 'ساخته‌شده با آرشام پوینت — ساخت پاورپوینت فارسی با هوش مصنوعی' : 'Made with Arsham Point — Persian AI presentations'}">&#10024; ${lang === 'fa' ? 'آرشام پوینت' : 'Arsham Point'}</a>` : ''}
+   614→</nav>
+   615→<div id="ovWrap"><div id="ovGrid"></div></div>
+   616→<div id="toast" role="status"></div>
+   617→<script>${playerScript(total, lang)}</script>
+   618→</body>
+   619→</html>`
+   620→}
+   621→
+   622→function labelsSafe(lang: DeckLanguage) {
+   623→  return lang === 'fa'
+   624→    ? { overview: 'نمای کلی (کلید O)', theme: 'تغییر تم روشن/تیره', fs: 'تمام‌صفحه', next: 'اسلاید بعدی', prev: 'اسلاید قبلی' }
+   625→    : { overview: 'Overview (O)', theme: 'Toggle theme', fs: 'Fullscreen', next: 'Next', prev: 'Previous' }
+   626→}
+   627→

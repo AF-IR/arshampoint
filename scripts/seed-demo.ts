@@ -85,6 +85,7 @@ async function main() {
         slideCount: s.slideCount,
         tone: s.tone,
         language: s.language,
+        visualMode: 'offline',
       })
       const html = generateDeckHTML(deck, { accent: s.accent as 'blue' })
       await db.presentation.create({

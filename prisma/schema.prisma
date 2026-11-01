@@ -34,3 +34,19 @@ model Presentation {
 
   @@index([userId, createdAt])
 }
+
+/* اشتراک‌های پولی — پلن حرفه‌ای (pro) با تاریخ پایان دوره.
+ * در حالت پروداکشن همین ساختار به‌صورت جدول public.subscriptions
+ * در Supabase ساخته می‌شود (فایل supabase-subscriptions.sql). */
+model Subscription {
+  id        String    @id @default(cuid())
+  userId    String
+  plan      String    @default("pro") // free | pro
+  status    String    @default("active") // active | expired
+  source    String    @default("manual") // zarinpal | manual | gift
+  periodEnd DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+}

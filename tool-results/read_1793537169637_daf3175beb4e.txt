@@ -1,0 +1,598 @@
+     1→import type { DeckJSON, DeckSlide } from '@/lib/deck-types'
+     2→import { isValidDeck, isDeckIcon, DECK_ICONS } from '@/lib/deck-types'
+     3→import { aiMode, ZAI_HTTP_BASE, ZAI_HTTP_MODEL } from '@/lib/mode'
+     4→
+     5→/* ─────────────────────────────────────────────────────────────
+     6→ * Two AI transports, chosen automatically by env:
+     7→ *  - "http": real Z.ai API with ZAI_API_KEY (Vercel / production)
+     8→ *            OpenAI-compatible endpoint, e.g.
+     9→ *            https://api.z.ai/api/paas/v4/chat/completions (glm-4.6)
+    10→ *  - "sdk" : bundled z-ai-web-dev-sdk (zero-config dev sandbox)
+    11→ * ───────────────────────────────────────────────────────────── */
+    12→
+    13→interface ChatMessage {
+    14→  role: 'system' | 'user' | 'assistant'
+    15→  content: string
+    16→}
+    17→
+    18→interface CompletionResult {
+    19→  content: string
+    20→}
+    21→
+    22→async function callZaiHttp(messages: ChatMessage[]): Promise<CompletionResult> {
+    23→  const apiKey = process.env.ZAI_API_KEY
+    24→  if (!apiKey) throw new Error('ZAI_API_KEY تنظیم نشده است.')
+    25→  const res = await fetch(`${ZAI_HTTP_BASE}/chat/completions`, {
+    26→    method: 'POST',
+    27→    headers: {
+    28→      'Content-Type': 'application/json',
+    29→      Authorization: `Bearer ${apiKey}`,
+    30→    },
+    31→    body: JSON.stringify({
+    32→      model: ZAI_HTTP_MODEL,
+    33→      messages,
+    34→      temperature: 0.7,
+    35→      /* ارائه‌های ۹ تا ۱۴ اسلایدی JSON بزرگ می‌سازند؛ بدون این سقف،
+    36→       * خروجی وسط JSON قطع می‌شد و ساختار نامعتبر می‌شد (باگ «بیش از ۸ اسلاید کار نمی‌کند») */
+    37→      max_tokens: 8192,
+    38→    }),
+    39→    signal: AbortSignal.timeout(180_000),
+    40→  })
+    41→  if (!res.ok) {
+    42→    const detail = await res.text().catch(() => '')
+    43→    throw new Error(
+    44→      `خطای سرویس Z.ai (کد ${res.status}). کلید API و اعتبار حساب را بررسی کنید. ${detail.slice(0, 160)}`
+    45→    )
+    46→  }
+    47→  const data = (await res.json()) as {
+    48→    choices?: { message?: { content?: string } }[]
+    49→  }
+    50→  return { content: data.choices?.[0]?.message?.content ?? '' }
+    51→}
+    52→
+    53→async function callZaiSdk(messages: ChatMessage[]): Promise<CompletionResult> {
+    54→  const { default: ZAI } = await import('z-ai-web-dev-sdk')
+    55→  const zai = await ZAI.create()
+    56→  const completion = await zai.chat.completions.create({
+    57→    messages: messages as unknown as Parameters<typeof zai.chat.completions.create>[0]['messages'],
+    58→    thinking: { type: 'disabled' },
+    59→  })
+    60→  return { content: completion.choices[0]?.message?.content ?? '' }
+    61→}
+    62→
+    63→async function chat(messages: ChatMessage[]): Promise<string> {
+    64→  const result = aiMode() === 'http' ? await callZaiHttp(messages) : await callZaiSdk(messages)
+    65→  const content = result.content
+    66→  if (!content || !content.trim()) throw new Error('پاسخ خالی از مدل هوش مصنوعی.')
+    67→  return content
+    68→}
+    69→
+    70→export interface GenerateOptions {
+    71→  topic: string
+    72→  audience?: string
+    73→  slideCount: number
+    74→  tone: string // رسمی، آموزشی، خلاقانه، ...
+    75→  language: 'fa' | 'en'
+    76→  /* حالت بصری: offline = بدون تصویر خارجی (آیکون/نمودار)،
+    77→   * image = درج تصویر به‌صورت لینک داخل اسلایدها */
+    78→  visualMode: 'offline' | 'image'
+    79→  /* لینک تصاویر اختیاری کاربر — در حالت image فقط از همین‌ها استفاده می‌شود */
+    80→  imageLinks?: string[]
+    81→  /* انواع اسلاید در اولویت (ویژه پلن حرفه‌ای — انتخاب دستی ترکیب اسلایدها) */
+    82→  preferredLayouts?: string[]
+    83→}
+    84→
+    85→/* ── چیدمان قطعی اسلایدها (رفع باگ «بیش از ۸ اسلاید») ──
+    86→ * به‌جای اینکه فقط بگوییم «دقیقاً N اسلاید بساز»، خودمان دقیقاً N اسلاید را
+    87→ * تیپ‌به‌تیپ برنامه‌ریزی می‌کنیم و از مدل فقط محتوای هر اسلاید را می‌خواهیم.
+    88→ * مزیت‌ها:
+    89→ *   ۱) تعداد تضمین می‌شود (مدل نمی‌تواند کم یا زیاد کند)
+    90→ *   ۲) تنوع چیدمان تضمین می‌شود — هیچ دو اسلاید پشت‌سرِهم هم‌نوع نیستند
+    91→ *   ۳) با هش موضوع، ترکیب از نقطه‌ای متفاوت شروع می‌شود؛ دو موضوع متفاوت
+    92→ *      دو ساختار متفاوت می‌گیرند (ارائه‌ها شبیه هم نمی‌شوند)
+    93→ *   ۴) اولویت کاربر حرفه‌ای (preferredLayouts) در قلب چیدمان می‌نشیند */
+    94→export function topicSeed(topic: string): number {
+    95→  let h = 0
+    96→  const t = topic ?? ''
+    97→  for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0
+    98→  return h
+    99→}
+   100→
+   101→export function planSlideTypes(
+   102→  slideCount: number,
+   103→  visualMode: 'offline' | 'image',
+   104→  seed: number,
+   105→  preferredLayouts?: string[],
+   106→): string[] {
+   107→  const n = Math.max(4, Math.min(14, Math.floor(slideCount) || 8))
+   108→  const plan: string[] = ['cover']
+   109→  const hasAgenda = n >= 5
+   110→  if (hasAgenda) plan.push('agenda')
+   111→  const mid = n - 2 - (hasAgenda ? 1 : 0) /* تعداد اسلایدهای میانی */
+   112→
+   113→  /* جداکننده بخش برای ارائه‌های بلند — ریتم بصری می‌سازد */
+   114→  const sections = mid >= 9 ? 2 : mid >= 6 ? 1 : 0
+   115→  /* اسلاید تصویر تمام‌عرض فقط در حالت تصویری */
+   116→  const images = visualMode === 'image' ? (mid >= 8 ? 2 : mid >= 5 ? 1 : 0) : 0
+   117→  const coreCount = Math.max(0, mid - sections - images)
+   118→
+   119→  /* استخر چرخشی انواع میانی — bullets ستون فقرات است، انواع دیگر بین آن‌ها */
+   120→  const baseCore =
+   121→    visualMode === 'image'
+   122→      ? ['bullets', 'two-column', 'stats', 'comparison', 'bullets', 'timeline', 'stats', 'bullets', 'two-column', 'timeline', 'comparison', 'quote']
+   123→      : ['bullets', 'stats', 'two-column', 'bullets', 'comparison', 'timeline', 'stats', 'quote', 'bullets', 'two-column', 'timeline', 'comparison']
+   124→
+   125→  /* اولویت کاربر (پلن حرفه‌ای): انواع انتخابی قلب چیدمان را می‌سازند.
+   126→   * با ۲ نوع و بیشتر، بین آن‌ها می‌چرخیم؛ با ۱ نوع، با bullets تناوب می‌کنیم. */
+   127→  const pref = (preferredLayouts ?? []).filter((t, i, arr) => arr.indexOf(t) === i)
+   128→  const core =
+   129→    pref.length >= 2
+   130→      ? Array.from({ length: Math.max(coreCount, 2) }, (_, i) => pref[i % pref.length])
+   131→      : pref.length === 1
+   132→        ? Array.from({ length: Math.max(coreCount, 2) }, (_, i) =>
+   133→            i % 2 === 0 ? pref[0] : pref[0] === 'bullets' ? 'two-column' : 'bullets'
+   134→          )
+   135→        : baseCore
+   136→
+   137→  const picked: string[] = []
+   138→  let i = Math.abs(seed) % core.length
+   139→  let guard = 0
+   140→  while (picked.length < coreCount && guard < coreCount * 20 + 40) {
+   141→    guard++
+   142→    const t = core[i % core.length]
+   143→    i++
+   144→    if (picked.length && picked[picked.length - 1] === t) continue
+   145→    picked.push(t)
+   146→  }
+   147→  while (picked.length < coreCount) picked.push('bullets') /*Safety valve */
+   148→
+   149→  /* درج جداکننده‌ها و اسلایدهای تصویری در موقعیت‌های نسبی —
+   150→   * از انتها درج می‌کنیم تا ایندکس‌های قبلی جابه‌جا نشوند؛
+   151→   * اگر همسایه هم‌نوع بود، یک جای جلوتر می‌نشینیم */
+   152→  const slots: [number, string][] = []
+   153→  if (sections >= 1) slots.push([Math.max(1, Math.floor(picked.length / 3)), 'section'])
+   154→  if (sections >= 2) slots.push([Math.max(3, Math.floor((picked.length * 2) / 3)), 'section'])
+   155→  if (images >= 1) slots.push([Math.max(0, Math.floor(picked.length * 0.55)), 'image'])
+   156→  if (images >= 2) slots.push([Math.max(1, Math.floor(picked.length * 0.85)), 'image'])
+   157→  slots.sort((a, b) => b[0] - a[0])
+   158→  for (const [pos, type] of slots) {
+   159→    let p = pos
+   160→    while (p < picked.length && (picked[p] === type || (p > 0 && picked[p - 1] === type))) p++
+   161→    picked.splice(Math.min(p, picked.length), 0, type)
+   162→  }
+   163→
+   164→  plan.push(...picked)
+   165→  plan.push('conclusion')
+   166→  return plan
+   167→}
+   168→
+   169→/* فهرست خوانا برای پرامپت — با راهنمای محتوای هر نوع */
+   170→const PLAN_HINTS_FA: Record<string, string> = {
+   171→  cover: 'جلد — badge کوتاه، title بزرگ، subtitle، date',
+   172→  agenda: 'فهرست مطالب — ۵ تا ۷ موضوع اصلی ارائه',
+   173→  bullets: 'نکات کلیدی — ۳ تا ۵ آیتم با تیتر، توضیح ۱-۲ جمله‌ای و نماد مفهومی',
+   174→  'two-column': 'دو ستونی — دو دسته مفهوم مکمل با سرستون و ۳ تا ۵ آیتم در هر ستون',
+   175→  comparison: 'مقایسه دو ستونی — مزایا/معایب یا روش ۱ در برابر روش ۲ (۳ تا ۴ نکته هر طرف)',
+   176→  stats: 'آمار و ارقام — ۳ تا ۴ عدد کلیدی با برچسب و توضیح مقیاس/بازه',
+   177→  quote: 'نقل‌قول تاثیرگذار مرتبط با موضوع + گوینده و سمت او',
+   178→  timeline: 'گام‌های زمانی — ۳ تا ۵ مرحله با شماره، عنوان و توضیح کوتاه',
+   179→  section: 'جداکننده بخش — عنوان بزرگ فصل بعد + یک جمله معرفی',
+   180→  image: 'تصویر تمام‌عرض — عنوان، لینک تصویر مرتبط و توضیح دو جمله‌ای',
+   181→  conclusion: 'جمع‌بندی — ۳ تا ۵ نکته اقدام‌پذیر + دعوت به اقدام',
+   182→}
+   183→const PLAN_HINTS_EN: Record<string, string> = {
+   184→  cover: 'cover — short badge, big title, subtitle, date',
+   185→  agenda: 'agenda — 5-7 main topics of the talk',
+   186→  bullets: 'key points — 3-5 items with a title, 1-2 sentence text and a semantic icon',
+   187→  'two-column': 'two columns — two complementary groups, heading + 3-5 items each',
+   188→  comparison: 'side-by-side comparison — pros/cons or option 1 vs option 2',
+   189→  stats: 'key numbers — 3-4 stats with labels and scale/timeframe',
+   190→  quote: 'an impactful topic-related quote with author and role',
+   191→  timeline: 'timeline — 3-5 numbered steps with title and short text',
+   192→  section: 'section divider — big title of the next chapter + one intro line',
+   193→  image: 'full-bleed image slide — title, topical image URL, short text',
+   194→  conclusion: 'wrap-up — 3-5 actionable takeaways + call to action',
+   195→}
+   196→
+   197→function planListFa(plan: string[]): string {
+   198→  const fa = (x: number) => String(x).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)])
+   199→  return plan.map((t, i) => `${fa(i + 1)}. ${t} — ${PLAN_HINTS_FA[t] ?? t}`).join('\n')
+   200→}
+   201→function planListEn(plan: string[]): string {
+   202→  return plan.map((t, i) => `${i + 1}. ${t} — ${PLAN_HINTS_EN[t] ?? t}`).join('\n')
+   203→}
+   204→
+   205→/* ── Prompt engineering ── */
+   206→
+   207→const IMAGE_SCHEMA_FA = `
+   208→- در حالت تصویری، فیلد اختیاری "image" (لینک کامل تصویر https) برای اسلایدهای cover و bullets (هر آیتم) مجاز است و نوع اسلاید جدید "image" هم در دسترس است:
+   209→    { "type": "image", "kicker": "برچسب", "title": "عنوان", "image": "لینک تصویر", "caption": "زیرنویس تصویر", "text": "توضیح یک دو جمله‌ای" }
+   210→- لینک‌های تصویر باید از لیست لینک‌های داده‌شده انتخاب شوند؛ اگر لیست خالی بود، برای هر اسلاید لینکی مرتبط بساز: https://loremflickr.com/800/500/<کلیدواژه‌های انگلیسی> — کلیدواژه‌ها باید دقیقاً مرتبط با محتوای همان اسلاید باشند (۱ تا ۳ واژه انگلیسی عام و پرتکرار جدا با کاما، مثل technology,classroom یا solar,panels یا medical,hospital). برای ارائه ۸ اسلاید به بالا حداقل ۲ اسلاید از نوع image بساز.`
+   211→
+   212→const ICON_SCHEMA_FA = `
+   213→- برای هر آیتم bullets می‌توانی فیلد اختیاری "icon" بگذاری؛ کلیدهای مجاز فقط این‌ها هستند: ${DECK_ICONS.join(', ')} — نماد باید با مفهوم همان آیتم هم‌خوان باشد (مثل clock برای زمان، users برای تیم، shield برای امنیت). در هر اسلاید حداقل نیمی از آیتم‌ها نماد داشته باشند.`
+   214→
+   215→function systemPrompt(lang: 'fa' | 'en', visualMode: 'offline' | 'image' = 'offline'): string {
+   216→  const imageFa = visualMode === 'image' ? IMAGE_SCHEMA_FA : ''
+   217→  const iconFa = ICON_SCHEMA_FA
+   218→  const imageEn =
+   219→    visualMode === 'image'
+   220→      ? `\n- In image mode, an optional "image" field (full https image URL) is allowed on cover and bullets slides, and a new slide type "image" is available: { "type": "image", "kicker": "...", "title": "...", "image": "https://...", "caption": "...", "text": "..." }. Use ONLY the provided image links; if the list is empty build https://loremflickr.com/800/500/<english-keywords> URLs with 1-3 broad topical keywords per slide (comma-separated, e.g. technology,classroom). For decks of 8+ slides include at least 2 "image" slides.`
+   221→      : '\n- ABSOLUTELY NO external images, no "image" fields, no <img>, no image URLs — slides use text, inline SVG icons, shapes and charts only.'
+   222→  const iconEn = `\n- Each bullets item may carry an optional "icon" key chosen ONLY from: ${DECK_ICONS.join(', ')}. Match the icon to the item meaning; give icons to at least half the items of every bullets slide.`
+   223→  const fa = `تو یک طراح حرفه‌ای ارائه (پرزنتیشن) هستی که محتوای ساختاریافته برای اسلایدهای HTML تولید می‌کنی.
+   224→خروجی تو باید «فقط و فقط» یک شیء JSON معتبر باشد — بدون هیچ متن اضافه، بدون markdown، بدون بک‌تیک.
+   225→قوانین محتوایی:
+   226→- زبان محتوا: فارسی روان و حرفه‌ای.
+   227→- اسلاید اول حتماً type آن "cover" و اسلاید آخر حتماً "conclusion" باشد.
+   228→- عنوان‌ها کوتاه و قدرتمند (حداکثر ۶۰ کاراکتر)، متن‌ها مختصر و مناسب اسلاید باشند (هر متن حداکثر ۲۴۰ کاراکتر) و جمله کامل باشند.
+   229→- از اعداد و آمار واقع‌گرایانه استفاده کن و در اسلاید stats مقدارها کوتاه باشند (مثل ۷۵٪ یا ۱.۲ میلیون). آمار باید با موضوع سازگار و قابل دفاع باشد و مقیاس/بازه زمانی داشته باشد.
+   230→- محتوا باید عمیق، تخصصی و غیرکلیشه‌ای باشد؛ هر اسلاید زاویه جدیدی از موضوع را پوشش دهد، نه تکرار اسلاید قبلی. از جملات کلی و توخالی مثل «نقش مهمی دارد» پرهیز کن.
+   231→- در bullets، متن هر آیتم یک تا دو جمله کامل و اطلاع‌رسان باشد و جزئیات مشخص بیاورد (مکانیزم، مثال، عدد یا کاربرد) — نه تکرار تیتر در جمله بلندتر.
+   232→- kicker هر اسلاید نام واقعی همان بخش ارائه است (مثل «تعریف و مفاهیم پایه» یا «چالش‌ها»)، نه تکرار عنوان اسلاید.
+   233→- در conclusion، نکات جمع‌بندی باید اقدام‌پذیر و مخصوص همین موضوع باشند و cta یک دعوت مشخص و عملی.
+   234→- بین ۵ تا ۸ آیتم در هر لیست قرار بده (نه بیشتر).${iconFa}${imageFa}
+   235→
+   236→انتخاب انواع اسلاید:
+   237→- ترکیب انواع اسلاید را «متناسب با موضوع» انتخاب کن: موضوع آماری → stats، موضوع دو قطبی یا مزایا/معایب → comparison، روند تاریخی یا مراحل → timeline، فهرست محور → agenda + bullets.
+   238→- دو اسلاید پشت سر هم هم‌نوع نباشند و از کل منوی انواع (agenda, bullets, two-column, comparison, section, stats, quote, timeline) بهره ببر تا ارائه یکنواخت نشود.
+   239→
+   240→ساختار دقیق JSON:
+   241→{
+   242→  "title": "عنوان کل ارائه",
+   243→  "subtitle": "زیرعنوان یک‌خطی",
+   244→  "language": "fa",
+   245→  "slides": [
+   246→    { "type": "cover", "badge": "برچسب کوتاه بالای عنوان", "title": "عنوان اصلی بزرگ", "subtitle": "توضیح یک تا دو خطی", "date": "تاریخ یا سال" },
+   247→    { "type": "agenda", "kicker": "برچسب بخش", "title": "عنوان اسلاید", "items": ["موضوع ۱", "موضوع ۲"] },
+   248→    { "type": "bullets", "kicker": "برچسب بخش", "title": "عنوان اسلاید", "items": [{ "title": "تیتر آیتم", "text": "توضیح ۱-۲ جمله‌ای", "icon": "کلید نماد" }] },
+   249→    { "type": "two-column", "kicker": "برچسب بخش", "title": "عنوان اسلاید", "columns": [{ "heading": "سرستون", "items": ["آیتم"] }, { "heading": "سرستون", "items": ["آیتم"] }] },
+   250→    { "type": "comparison", "kicker": "برچسب بخش", "title": "عنوان مقایسه", "left": { "heading": "مزایا", "points": ["نکته ۱", "نکته ۲"] }, "right": { "heading": "معایب", "points": ["نکته ۱", "نکته ۲"] } },
+   251→    { "type": "section", "kicker": "برچسب فصل", "title": "عنوان بزرگ بخش", "subtitle": "یک جمله معرفی بخش" },
+   252→    { "type": "stats", "kicker": "برچسب بخش", "title": "عنوان اسلاید", "stats": [{ "value": "۷۵٪", "label": "برچسب", "hint": "توضیح کوتاه" }], "footnote": "جمع‌بندی کوتاه" },
+   253→    { "type": "quote", "quote": "نقل‌قول تاثیرگذار مرتبط با موضوع", "author": "گوینده", "role": "سمت" },
+   254→    { "type": "timeline", "kicker": "برچسب بخش", "title": "عنوان اسلاید", "steps": [{ "label": "۱", "title": "عنوان مرحله", "text": "توضیح کوتاه" }] },
+   255→    { "type": "conclusion", "title": "عنوان پایانی", "points": ["نکته کلیدی ۱", "نکته کلیدی ۲"], "cta": "دعوت به اقدام کوتاه" }
+   256→  ]
+   257→}
+   258→انواع اسلاید را متنوع و هوشمندانه انتخاب کن؛ برای موضوعات آماری از stats، برای مقایسه یا مزایا/معایب از comparison، برای روند تاریخی از timeline، و در ارائه‌های ۹ اسلاید به بالا یکی دو اسلاید section برای جدا کردن فصل‌ها بگذار. نام تهیه‌کنندگان یا اعضا را از خودت نساز — اگر کاربر نام اعضا داده باشد، سیستم به‌صورت خودکار روی جلد و اسلاید پایانی درج می‌کند. فقط JSON برگردان.`
+   259→  const en = `You are a professional presentation designer producing structured content for HTML slides.
+   260→Return ONLY a valid JSON object — no extra text, no markdown, no backticks.
+   261→Rules: short powerful titles (max 60 chars), concise slide copy (max 240 chars per text), 5-8 items per list, realistic statistics with scale/timeframe, non-repetitive coverage. Avoid generic filler; every bullets item must be 1-2 full informative sentences with concrete details (mechanism, example, figure or use case), never a restatement of its title. Kickers name the real section of the talk (e.g. "Key concepts", "Challenges"). Conclusion points must be actionable and topic-specific. Do not invent presenter or member names — the system adds them automatically when provided.${iconEn}${imageEn}
+   262→Slide-type mix: choose types that fit the topic (stats for numbers, comparison for pros/cons, timeline for history); never place two consecutive slides of the same type; draw from the full menu.
+   263→JSON shape:
+   264→{ "title": "...", "subtitle": "...", "language": "en", "slides": [ { "type": "cover" | "agenda" | "bullets" | "two-column" | "comparison" | "section" | "stats" | "quote" | "timeline" | "conclusion" | "image", ... } ] }
+   265→Slide type fields: cover{badge,title,subtitle,date}, agenda{kicker,title,items[]}, bullets{kicker,title,items[{title,text,icon}]}, two-column{kicker,title,columns[{heading,items[]}]}, comparison{kicker,title,left{heading,points[]},right{heading,points[]}}, section{kicker,title,subtitle}, stats{kicker,title,stats[{value,label,hint}],footnote}, quote{quote,author,role}, timeline{kicker,title,steps[{label,title,text}]}, conclusion{title,points[],cta}, image{kicker,title,image,caption,text}.
+   266→Use comparison for pros/cons, timeline for history, section dividers for 9+ slide decks. Return JSON only.`
+   267→  return lang === 'fa' ? fa : en
+   268→}
+   269→
+   270→function userPrompt(opts: GenerateOptions, plan: string[]): string {
+   271→  const audience = opts.audience?.trim()
+   272→  const layoutsFa = opts.preferredLayouts?.length
+   273→    ? `انواع اسلاید در اولویت کاربر: ${opts.preferredLayouts.join('، ')} — این انواع در چیدمان قطعی پایین از پیش گنجانده شده‌اند و باید با محتوای واقعی و عمیق پر شوند.`
+   274→    : ''
+   275→  const layoutsEn = opts.preferredLayouts?.length
+   276→    ? `User-priority slide types: ${opts.preferredLayouts.join(', ')} — they are already baked into the definitive plan below; fill them with real, deep content.`
+   277→    : ''
+   278→  const imageNoteFa =
+   279→    opts.visualMode === 'image'
+   280→      ? opts.imageLinks && opts.imageLinks.length > 0
+   281→        ? `حالت تصویری فعال است. فقط از این لینک‌های تصویر استفاده کن (به ترتیب، هر لینک حداکثر یک‌بار):
+   282→${opts.imageLinks.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+   283→        : 'حالت تصویری فعال است؛ برای اسلایدهای cover، image و بخشی از bullets لینک تصویر مرتبط بساز.'
+   284→      : 'حالت آفلاین/متنی فعال است: هیچ تصویر خارجی درج نکن.'
+   285→  const imageNoteEn =
+   286→    opts.visualMode === 'image'
+   287→      ? opts.imageLinks && opts.imageLinks.length > 0
+   288→        ? `Image mode is ON. Use ONLY these image links (in order, each at most once):
+   289→${opts.imageLinks.map((u, i) => `${i + 1}. ${u}`).join('\n')}`
+   290→        : 'Image mode is ON; build topical image URLs for cover, image and some bullets slides.'
+   291→      : 'Offline/text mode is ON: include NO external images.'
+   292→  const fa = `موضوع ارائه: «${opts.topic}»
+   293→تعداد اسلایدها: دقیقاً ${plan.length} اسلاید.
+   294→چیدمان قطعی اسلایدها — تعداد، نوع و ترتیب اسلایدها عیناً مطابق این فهرست باشد و هیچ اسلایدی کم یا زیاد نشود:
+   295→${planListFa(plan)}
+   296→${audience ? `مخاطب: ${audience}.` : ''}
+   297→لحن ارائه: ${opts.tone}.
+   298→${imageNoteFa}
+   299→${layoutsFa}
+   300→برای هر اسلاید از این فهرست محتوای کامل و حرفه‌ای بنویس؛ نوع و ترتیب هیچ اسلایدی را عوض نکن. فقط JSON برگردان.`
+   301→  const en = `Presentation topic: "${opts.topic}"
+   302→Number of slides: exactly ${plan.length}.
+   303→Definitive slide plan — the count, type and order of slides MUST follow this list exactly; do not add or drop any slide:
+   304→${planListEn(plan)}
+   305→${audience ? `Audience: ${audience}.` : ''}
+   306→Tone: ${opts.tone}.
+   307→${imageNoteEn}
+   308→${layoutsEn}
+   309→Write complete professional content for every slide in the plan; never change a slide's type or position. Return JSON only.`
+   310→  return opts.language === 'fa' ? fa : en
+   311→}
+   312→
+   313→/* ── Robust JSON extraction ── */
+   314→
+   315→export function extractJSON(text: string): unknown {
+   316→  let t = text.trim()
+   317→  t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '')
+   318→  // 1) whole text might be pure JSON
+   319→  try {
+   320→    return JSON.parse(t)
+   321→  } catch {
+   322→    /* fall through */
+   323→  }
+   324→  // 2) slice the outermost braces
+   325→  const start = t.indexOf('{')
+   326→  const end = t.lastIndexOf('}')
+   327→  if (start === -1 || end === -1 || end <= start) throw new Error('پاسخ مدل JSON معتبر نبود.')
+   328→  const slice = t.slice(start, end + 1)
+   329→  try {
+   330→    return JSON.parse(slice)
+   331→  } catch {
+   332→    // 3) last resort: progressively try balanced-object candidates
+   333→    for (let i = start; i < end; i++) {
+   334→      if (t[i] !== '{') continue
+   335→      const cand = t.slice(i, end + 1)
+   336→      try {
+   337→        return JSON.parse(cand)
+   338→      } catch {
+   339→        /* keep looking */
+   340→      }
+   341→    }
+   342→    throw new Error('پاسخ مدل JSON معتبر نبود.')
+   343→  }
+   344→}
+   345→
+   346→/* ── Normalization: keep AI output within safe layout bounds ── */
+   347→
+   348→const MAX_TEXT = 260
+   349→
+   350→function cut(v: unknown, max: number = MAX_TEXT): string {
+   351→  return String(v ?? '').trim().slice(0, max)
+   352→}
+   353→
+   354→/* لینک تصویر امن — فقط http(s)، حداکثر ۵۰۰ کاراکتر، بدون نویسه خطرناک */
+   355→function safeImageUrl(v: unknown): string | undefined {
+   356→  const s = String(v ?? '').trim()
+   357→  if (!s || s.length > 500) return undefined
+   358→  if (!/^https?:\/\/[\w\-._~:\/?#[\]@!$&'()*+,;=%]+$/i.test(s)) return undefined
+   359→  return s
+   360→}
+   361→
+   362→function normSlide(raw: Record<string, unknown>): DeckSlide | null {
+   363→  const type = String(raw.type ?? '')
+   364→  switch (type) {
+   365→    case 'cover':
+   366→      return {
+   367→        type: 'cover',
+   368→        badge: cut(raw.badge, 40) || undefined,
+   369→        title: cut(raw.title, 90),
+   370→        subtitle: cut(raw.subtitle, 200) || undefined,
+   371→        /* نام ارائه‌دهنده/اعضا دیگر پذیرفته نمی‌شود */
+   372→        date: cut(raw.date, 40) || undefined,
+   373→        image: safeImageUrl(raw.image),
+   374→        imageCaption: cut(raw.imageCaption ?? raw.caption, 120) || undefined,
+   375→      }
+   376→    case 'image': {
+   377→      const img = safeImageUrl(raw.image)
+   378→      if (!img) return null // image slide without a valid image is useless
+   379→      return {
+   380→        type: 'image',
+   381→        kicker: cut(raw.kicker, 40) || undefined,
+   382→        title: cut(raw.title, 80),
+   383→        image: img,
+   384→        caption: cut(raw.caption, 140) || undefined,
+   385→        text: cut(raw.text, 220) || undefined,
+   386→      }
+   387→    }
+   388→    case 'agenda':
+   389→      return {
+   390→        type: 'agenda',
+   391→        kicker: cut(raw.kicker, 40) || undefined,
+   392→        title: cut(raw.title, 80),
+   393→        items: Array.isArray(raw.items) ? raw.items.slice(0, 8).map((i) => cut(i, 90)).filter(Boolean) : [],
+   394→      }
+   395→    case 'bullets':
+   396→      return {
+   397→        type: 'bullets',
+   398→        kicker: cut(raw.kicker, 40) || undefined,
+   399→        title: cut(raw.title, 80),
+   400→        items: Array.isArray(raw.items)
+   401→          ? raw.items.slice(0, 6).map((it) => {
+   402→              const o = (it ?? {}) as Record<string, unknown>
+   403→              return {
+   404→                title: cut(o.title, 60) || undefined,
+   405→                text: cut(o.text, 240),
+   406→                image: safeImageUrl(o.image),
+   407→                icon: isDeckIcon(o.icon) ? o.icon : undefined,
+   408→              }
+   409→            }).filter((i) => i.text)
+   410→          : [],
+   411→      }
+   412→    case 'two-column':
+   413→      return {
+   414→        type: 'two-column',
+   415→        kicker: cut(raw.kicker, 40) || undefined,
+   416→        title: cut(raw.title, 80),
+   417→        columns: Array.isArray(raw.columns)
+   418→          ? raw.columns.slice(0, 2).map((c) => {
+   419→              const o = (c ?? {}) as Record<string, unknown>
+   420→              return {
+   421→                heading: cut(o.heading, 50),
+   422→                items: Array.isArray(o.items) ? o.items.slice(0, 6).map((i) => cut(i, 110)).filter(Boolean) : [],
+   423→              }
+   424→            })
+   425→          : [],
+   426→      }
+   427→    case 'stats':
+   428→      return {
+   429→        type: 'stats',
+   430→        kicker: cut(raw.kicker, 40) || undefined,
+   431→        title: cut(raw.title, 80),
+   432→        stats: Array.isArray(raw.stats)
+   433→          ? raw.stats.slice(0, 4).map((st) => {
+   434→              const o = (st ?? {}) as Record<string, unknown>
+   435→              return { value: cut(o.value, 14), label: cut(o.label, 60), hint: cut(o.hint, 90) || undefined }
+   436→            }).filter((s) => s.value)
+   437→          : [],
+   438→        footnote: cut(raw.footnote, 170) || undefined,
+   439→      }
+   440→    case 'quote':
+   441→      return {
+   442→        type: 'quote',
+   443→        quote: cut(raw.quote, 240),
+   444→        author: cut(raw.author, 60) || undefined,
+   445→        role: cut(raw.role, 70) || undefined,
+   446→      }
+   447→    case 'timeline':
+   448→      return {
+   449→        type: 'timeline',
+   450→        kicker: cut(raw.kicker, 40) || undefined,
+   451→        title: cut(raw.title, 80),
+   452→        steps: Array.isArray(raw.steps)
+   453→          ? raw.steps.slice(0, 5).map((st) => {
+   454→              const o = (st ?? {}) as Record<string, unknown>
+   455→              return { label: cut(o.label, 6) || '•', title: cut(o.title, 60), text: cut(o.text, 130) }
+   456→            }).filter((s) => s.title)
+   457→          : [],
+   458→      }
+   459→    case 'conclusion':
+   460→      return {
+   461→        type: 'conclusion',
+   462→        title: cut(raw.title, 80),
+   463→        points: Array.isArray(raw.points) ? raw.points.slice(0, 5).map((p) => cut(p, 120)).filter(Boolean) : [],
+   464→        cta: cut(raw.cta, 70) || undefined,
+   465→      }
+   466→    case 'section':
+   467→      return {
+   468→        type: 'section',
+   469→        kicker: cut(raw.kicker, 40) || undefined,
+   470→        title: cut(raw.title, 90),
+   471→        subtitle: cut(raw.subtitle, 160) || undefined,
+   472→      }
+   473→    case 'comparison': {
+   474→      /* مدل ممکن است points یا items بنویسد — هر دو پذیرفته می‌شود */
+   475→      const side = (v: unknown): { heading: string; points: string[] } | null => {
+   476→        const o = (v ?? {}) as Record<string, unknown>
+   477→        const heading = cut(o.heading, 40)
+   478→        const rawPoints = Array.isArray(o.points) ? o.points : Array.isArray(o.items) ? o.items : []
+   479→        const points = rawPoints.slice(0, 5).map((p) => cut(p, 110)).filter(Boolean)
+   480→        if (!heading || points.length < 1) return null
+   481→        return { heading, points }
+   482→      }
+   483→      const left = side(raw.left)
+   484→      const right = side(raw.right)
+   485→      if (!left || !right) return null
+   486→      return {
+   487→        type: 'comparison',
+   488→        kicker: cut(raw.kicker, 40) || undefined,
+   489→        title: cut(raw.title, 80),
+   490→        left,
+   491→        right,
+   492→      }
+   493→    }
+   494→    default:
+   495→      return null
+   496→  }
+   497→}
+   498→
+   499→export function normalizeDeck(
+   500→  value: unknown,
+   501→  language: 'fa' | 'en',
+   502→  visualMode: 'offline' | 'image' = 'image',
+   503→): DeckJSON | null {
+   504→  if (!isValidDeck(value)) return null
+   505→  const raw = value as DeckJSON
+   506→  const slides = raw.slides
+   507→    .map((s) => normSlide(s as unknown as Record<string, unknown>))
+   508→    .filter((s): s is DeckSlide => s !== null)
+   509→    .filter((s) => {
+   510→      if (s.type === 'agenda') return s.items.length >= 2
+   511→      if (s.type === 'bullets') return s.items.length >= 1
+   512→      if (s.type === 'two-column') return s.columns.length === 2 && s.columns.every((c) => c.items.length >= 1)
+   513→      if (s.type === 'stats') return s.stats.length >= 2
+   514→      if (s.type === 'quote') return s.quote.length > 0
+   515→      if (s.type === 'timeline') return s.steps.length >= 2
+   516→      if (s.type === 'conclusion') return s.points.length >= 1
+   517→      if (s.type === 'section') return s.title.trim().length > 0
+   518→      if (s.type === 'comparison') return s.left.points.length >= 1 && s.right.points.length >= 1
+   519→      return true
+   520→    })
+   521→    /* حالت آفلاین: هیچ تصویر خارجی نباید در فایل بماند */
+   522→    .map((s) => {
+   523→      if (visualMode !== 'offline') return s
+   524→      if (s.type === 'image') return null
+   525→      if (s.type === 'cover') return { ...s, image: undefined, imageCaption: undefined }
+   526→      if (s.type === 'bullets')
+   527→        return { ...s, items: s.items.map((it) => ({ ...it, image: undefined })) }
+   528→      return s
+   529→    })
+   530→    .filter((s): s is DeckSlide => s !== null)
+   531→  if (slides.length < 2) return null
+   532→  const cover = slides[0].type === 'cover' ? slides[0] : null
+   533→  const title = cover && 'title' in cover ? cover.title : raw.title
+   534→  return {
+   535→    title: cut(title, 120) || (language === 'fa' ? 'ارائه بدون عنوان' : 'Untitled deck'),
+   536→    subtitle: cut(raw.subtitle, 200) || undefined,
+   537→    language: raw.language === 'en' ? 'en' : language,
+   538→    slides,
+   539→  }
+   540→}
+   541→
+   542→/* اصلاح ساختاری خروجی مدل: cover اول، conclusion آخر، و برش هوشمند
+   543→ * تعداد اضافه (به‌جای بریدن از انتها، از میان اسلایدها کم می‌کنیم
+   544→ * تا cover و conclusion همیشه سالم بمانند) */
+   545→export function fixStructure(deck: DeckJSON, want: number): DeckJSON {
+   546→  let slides = [...deck.slides]
+   547→  const ci = slides.findIndex((s) => s.type === 'cover')
+   548→  if (ci > 0) slides = [slides[ci], ...slides.slice(0, ci), ...slides.slice(ci + 1)]
+   549→  const ei = slides.findIndex((s) => s.type === 'conclusion')
+   550→  if (ei >= 0 && ei !== slides.length - 1) {
+   551→    const [c] = slides.splice(ei, 1)
+   552→    slides.push(c)
+   553→  }
+   554→  if (slides.length > want && slides.length >= 3) {
+   555→    const first = slides[0]
+   556→    const last = slides[slides.length - 1]
+   557→    const mid = slides.slice(1, -1)
+   558→    slides = [first, ...mid.slice(0, Math.max(1, want - 2)), last]
+   559→  }
+   560→  return { ...deck, slides }
+   561→}
+   562→
+   563→/* ── Z.ai call ── */
+   564→
+   565→export async function generateDeckWithAI(opts: GenerateOptions): Promise<DeckJSON> {
+   566→  /* چیدمان قطعی: تعداد و نوع هر اسلاید از قبل برنامه‌ریزی می‌شود تا
+   567→   * «بیش از ۸ اسلاید» هم دقیقاً رعایت شود و ترکیب انواع متنوع بماند */
+   568→  const plan = planSlideTypes(opts.slideCount, opts.visualMode, topicSeed(opts.topic), opts.preferredLayouts)
+   569→  const want = plan.length
+   570→
+   571→  let best: DeckJSON | null = null
+   572→  let lastErr: unknown
+   573→  // two attempts: LLM output can occasionally break JSON structure or come up short
+   574→  for (let attempt = 0; attempt < 2; attempt++) {
+   575→    try {
+   576→      const content = await chat([
+   577→        { role: 'system', content: systemPrompt(opts.language, opts.visualMode) },
+   578→        { role: 'user', content: userPrompt(opts, plan) },
+   579→      ])
+   580→
+   581→      let deck = normalizeDeck(extractJSON(content), opts.language, opts.visualMode)
+   582→      if (!deck) throw new Error('ساختار ارائه تولیدشده معتبر نبود. دوباره تلاش کنید.')
+   583→      deck = fixStructure(deck, want)
+   584→
+   585→      // تعداد رعایت شد؟ (یک اسلاید کمتر قابل قبول است)
+   586→      if (deck.slides.length >= want - 1) return deck
+   587→      // کمتر از درخواست — بهترین تلاش را نگه دار و یک‌بار دیگر بخواه
+   588→      if (!best || deck.slides.length > best.slides.length) best = deck
+   589→    } catch (err) {
+   590→      lastErr = err
+   591→    }
+   592→  }
+   593→  if (best) return best
+   594→  throw lastErr instanceof Error
+   595→    ? lastErr
+   596→    : new Error('تولید پرزنتیشن ناموفق بود. لطفاً دوباره تلاش کنید.')
+   597→}
+   598→

@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /api/
 
-Sitemap: https://arshampoint.vercel.app/sitemap.xml
+Sitemap: https://apoint.ir/sitemap.xml

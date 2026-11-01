@@ -1,0 +1,588 @@
+     1→# Worklog
+     2→
+     3→---
+     4→Task ID: 1
+     5→Agent: Main Agent (Z.ai)
+     6→Task: ساخت وب‌اپلیکیشن «اسلاید هوشمند» — تولید پرزنتیشن HTML با هوش مصنوعی Z.ai، ورود کاربران و کتابخانه ذخیره‌سازی
+     7→
+     8→Work Log:
+     9→- بارگذاری اسکیل‌های fullstack-dev و LLM؛ راه‌اندازی محیط با init-fullstack.sh
+    10→- تحلیل قالب نمونه کاربر (NotebookLM deck): بوم 1280x720، RTL فارسی، فونت Vazirmatn/Outfit، پالت گوگل دو تمه، ناوبری کیبورد
+    11→- Prisma schema: مدل User (email/passwordHash) + Presentation (deckJson, html, theme, ...) و db:push
+    12→- src/lib/auth.ts: هش رمز scrypt + JWT HS256 بدون وابستگی خارجی + کوکی httpOnly
+    13→- API routes: auth/register, auth/login, auth/logout, auth/me, presentations (GET/POST), presentations/[id] (GET/DELETE), presentations/[id]/html (inline + download)
+    14→- src/lib/deck-types.ts: قرارداد DeckJSON با ۸ نوع اسلاید (cover/agenda/bullets/two-column/stats/quote/timeline/conclusion)
+    15→- src/lib/deck-ai.ts: پرامپت سیستمی فارسی + استخراج JSON مقاوم + نرمال‌سازی ایمن چیدمان
+    16→- src/lib/deck-generator.ts: موتور رندر HTML تک‌فایلی (۴ تم رنگی × دو تم روشن/تیره، ناوبری کیبورد/لمسی، dots، شمارنده فارسی، overview با کلید O، fullscreen، print CSS)
+    17→- src/app/page.tsx + کامپوننت‌های zslide: SPA فارسی RTL با نمای ورود/داشبورد/فرم ساخت/اورلی تولید/پیش‌نمایش iframe/کتابخانه
+    18→- تست curl: ثبت‌نام، session، تولید ۴ اسلایدی (۸.۴ ثانیه)، هدر دانلود attachment با نام فارسی
+    19→- تست Agent Browser: ورود، داشبورد، پیش‌نمایش iframe، ناوبری اسلاید (۲/۴)، تم روشن، overview، تولید از UI (۸ اسلاید بنفش)، موبایل ۳۹۰px، فوتر چسبیده
+    20→- lint بدون خطا؛ dev.log بدون خطای runtime
+    21→
+    22→Stage Summary:
+    23→- اپلیکیشن کامل و تست‌شده روی پورت ۳۰۰۰ (تنها مسیر /)
+    24→- دو پرزنتیشن دمو در کتابخانه کاربر test@zslide.ir (رمز: test123456)
+    25→- نکته Supabase: احراز هویت با Prisma/SQLite پیاده‌سازی شد تا در سندباکس کار کند؛ اسکیما سازگار با Postgres سوپابیس است و برای مهاجرت کافی است provider به postgresql تغییر کند و DATABASE_URL به کانکشن سوپابیس اشاره کند.
+    26→
+    27→---
+    28→Task ID: 2
+    29→Agent: Main Agent (Z.ai)
+    30→Task: ارتقا به نسخه اصلی (Production) — احراز هویت Supabase، دیتابیس Supabase Postgres، کلید ZAI_API_KEY، آماده‌سازی استقرار Vercel + راهنمای کامل فارسی
+    31→
+    32→Work Log:
+    33→- نصب @supabase/supabase-js@2.118.0
+    34→- src/lib/mode.ts: تشخیص خودکار حالت (supabase در صورت تنظیم ۳ متغیر، وگرنه local) + حالت AI (http با ZAI_API_KEY یا sdk سندباکس)
+    35→- src/lib/supabase-server.ts: کلاینت service_role سمت سرور + verifySupabaseToken
+    36→- src/lib/store.ts: لایه انتزاعی داده با دو پیاده‌سازی (Supabase Postgres جدول presentations / Prisma SQLite محلی با import تنبل)
+    37→- src/lib/deck-ai.ts: دو ترنسپورت هوش مصنوعی — HTTP سازگار با OpenAI روی api.z.ai با Bearer ZAI_API_KEY (glm-4.6) یا SDK داخلی
+    38→- src/lib/auth.ts: getUserFromRequest با پشتیبانی Bearer توکن سوپابیس + fallback کوکی
+    39→- بازنویسی همه API routes (register/login/logout/me/presentations/[id]/html) + route جدید /api/status
+    40→- src/lib/client-auth.ts: احراز هویت مرورگری supabase-js با refresh خودکار + apiFetch با هدر Authorization + پیام‌های خطای فارسی + resolveMode
+    41→- UI: auth-view (نشان حالت + پیام تأیید ایمیل)، page (نشان وضعیت هدر + پیل موتور AI)، preview-overlay و deck-grid (دانلود و پیش‌نمایش مبتنی بر Blob — سازگار با Bearer)، دیالوگ «راهنمای استقرار» سه‌تبی درون‌برنامه‌ای
+    42→- فایل‌های استقرار: supabase/schema.sql (جدول + RLS)، .env.example، README-DEPLOY.md (فارسی، در ریشه و download/)
+    43→- تست curl: status/local login/list/generate (۵ اسلاید، ~۱۸ ثانیه)/html (28KB)/delete — همه 200
+    44→- تست Agent Browser: ورود، داشبورد، دیالوگ راهنما (۳ تب)، پیش‌نمایش Blob iframe، ناوبری کیبورد اسلاید ۳/۴، موبایل ۳۹۰px با فوتر چسبیده، بدون خطای کنسول
+    45→- lint: 0 error
+    46→
+    47→Stage Summary:
+    48→- معماری دوحالته: تنظیم ۳ متغیر Supabase → پروداکشن کامل؛ بدون متغیر → دموی محلی سندباکس
+    49→- کلیدها: SUPABASE (URL/anon/service_role) + ZAI_API_KEY — همگی در Vercel → Settings → Environment Variables
+    50→- راهنمای استقرار فارسی: README-DEPLOY.md + راهنمای درون‌برنامه‌ای در دیالوگ «راهنمای استقرار»
+    51→- supabase/schema.sql برای SQL Editor سوپابیس آماده است
+    52→
+    53→---
+    54→Task ID: 3
+    55→Agent: Main Agent (Z.ai)
+    56→Task: تبدیل به محصول کامل «آرشام پوینت» — صفحات چندگانه، حساب آزمایشی، پنل و حساب من، صفحات SEO
+    57→
+    58→Work Log:
+    59→- ریبرند کامل از «اسلاید هوشمند» به «آرشام پوینت» (layout metadata، auth-view، صفحه، فوتر، README، schema.sql)
+    60→- src/components/arsham/content.ts: برند + ویژگی‌ها + مراحل + FAQ + آمار به‌عنوان منبع واحد
+    61→- src/hooks/use-hash-route.ts: روتر هش SPA با useSyncExternalStore (محدودیت سندباکس: فقط مسیر / دیده می‌شود؛ روی Vercel قابل تبدیل به مسیر واقعی)
+    62→- src/components/arsham/site-chrome.tsx: PublicHeader + AppHeader + SiteFooter با منوی موبایل همبرگری
+    63→- landing.tsx: هیرو + آمار + ۶ ویژگی + ۳ مرحله + showcase زنده (iframe /samples/showcase.html) + آکاردئون FAQ + CTA
+    64→- static-pages.tsx: درباره/امکانات/سوالات/حریم خصوصی/قوانین/تماس با محتوای غنی فارسی
+    65→- dashboard.tsx: پنل کاربر (تب ساخت + کتابخانه)؛ PresentationsPage با initialTab=library
+    66→- account.tsx: پروفایل + آمار (تعداد ارائه/اسلاید/آخرین فعالیت) + وضعیت زیرساخت + خروج
+    67→- page.tsx: روتر کامل با محافظت مسیرهای app/presentations/account
+    68→- auth-view: کارت حساب آزمایشی با ورود یک‌کلیکی (فقط حالت local) + بازگشت به خانه
+    69→- scripts/seed-demo.ts: کاربر demo@arshampoint.ir / 123456 + ۲ ارائه نمونه AI + public/samples/showcase.html
+    70→- deck-ai.ts: extractJSON سه‌لایه + retry یک‌باره برای خروجی شکسته LLM
+    71→- SEO: metadataBase/openGraph/twitter/robots + JSON-LD (WebApplication + FAQPage) + robots.txt
+    72→- رفع ۲ خطای lint (setState-in-effect) — نهایی: 0 error
+    73→- تست مرورگر: landing، showcase iframe، about، auth، ورود دمو، داشبورد (کتابخانه ۲ ارائه)، حساب من، خروج→landing، موبایل ۳۹۰px — بدون خطای کنسول
+    74→
+    75→Stage Summary:
+    76→- ۱۱ نما (route) فعال: خانه/auth/app/presentations/account/about/features/faq/privacy/terms/contact
+    77→- حساب آزمایشی: demo@arshampoint.ir / 123456 (ورود یک‌کلیکی در صفحه ورود)
+    78→- نمونه زنده در صفحه خانه از public/samples/showcase.html سرو می‌شود
+    79→
+    80→---
+    81→Task ID: 4
+    82→Agent: Main Agent (Z.ai)
+    83→Task: بهبود ساختار و سرعت + بیلد و اجرای موفق نسخه پروداکشن
+    84→
+    85→Work Log:
+    86→- فونت وزیرمتن سلف‌هاست شد (۳ سابست woff2 متغیر ۱۰۰-۹۰۰ در public/fonts)؛ حذف لینک رندربلاک‌کننده Google Fonts از layout و جایگزینی با preload محلی — بدون درخواست third-party در زمان اجرا
+    87→- client-auth: supabase-js به import پویا منتقل شد (~۳۰KB از باندل اولیه کم شد؛ در حالت دمو اصلاً لود نمی‌شود) + کش module-level برای /api/status (یک درخواست در هر بارگذاری صفحه)
+    88→- SessionProvider جدید (components/arsham/session.tsx): state مرکزی نشست با resolve موازی mode+session (Promise.all) — حذف prop-drilling و حذف fetch تکراری status در صفحه حساب
+    89→- page.tsx: جدول مسیر اعلایی + next/dynamic برای همه نماها — code splitting سطح مسیر (لندینگ دیگر داشبورد/صفحات استاتیک را حمل نمی‌کند) + document.title همگام با هر مسیر
+    90→- SEO: لندینگ حالا در SSR کامل رندر می‌شود (به‌جای اسپینر بوت) — محتوای HTML خزیدنی برای خزنده‌ها
+    91→- رفع ۳ خطای تایپ پنهان زیر ignoreBuildErrors: DeckLanguage import در deck-generator، guard خروجی null signUp در client-auth
+    92→- next.config: distDir از env قابل override است (NEXT_DIST_DIR) برای بیلد ایزوله بدون آسیب به سرور dev
+    93→- بیلد پروداکشن موفق: NEXT_DIST_DIR=.next-build bunx next build → ✓ Compiled in 10.2s، ۱۱ مسیر (۱ استاتیک + ۱۰ داینامیک)
+    94→- اجرای موفق سرور standalone روی پورت ۳۱۰۰: / و /api/status و /api/auth/login همه 200 + فونت 200
+    95→- تست Agent Browser: لندینگ، بارگذاری فونت محلی (document.fonts.check=true)، features/about با چانک پویا، ورود دمو، داشبورد (کتابخانه ۲)، حساب من (status از context)، خروج→لندینگ، گارد مسیر محافظت‌شده (app→auth)، موبایل ۳۹۰px فوتر طبیعی — بدون خطای کنسول
+    96→- lint نهایی: 0 error؛ tsc روی src/: 0 error
+    97→
+    98→Stage Summary:
+    99→- سرعت: باندل اولیه سبک‌تر (فونت محلی + حذف supabase-js + تقسیم چانک)، بوت موازی، یک درخواست status
+   100→- ساختار: SessionProvider مرکزی + جدول مسیر اعلایی + تایپ‌های سالم
+   101→- بیلد و اجرای پروداکشن تأیید شد؛ در Vercel همان «next build» استاندارد استفاده می‌شود
+   102→
+   103→---
+   104→Task ID: 5
+   105→Agent: Main Agent (Z.ai)
+   106→Task: مراحل نهایی + بسته زیپ آماده آپلود به ریپازیتوری
+   107→
+   108→Work Log:
+   109→- README.md کامل فارسی ساخته شد (امکانات، تکنولوژی، اجرای سریع، جدول متغیرها، اتصال Supabase، استقرار Vercel، ساختار پروژه)
+   110→- .env.example با ۸ متغیر + کامنت فارسی نوشته شد (قبلاً وجود نداشت/خالی بود)
+   111→- .gitignore اصلاح شد: !.env.example + بستن /db، /.next-build، /download، /upload، /worklog.md، /agent-ctx
+   112→- package.json: نام → arsham-point، نسخه → 1.0.0، اسکریپت postinstall: prisma generate
+   113→- scripts/make-repo-zip.sh: ساخت زیپ تمیز با staging — بدون node_modules/.next/db/.env/log/پوشه‌های سندباکس
+   114→- خروجی: download/arsham-point.zip (356KB، ۱۳۲ فایل، شامل src کامل + کانفیگ‌ها + bun.lock + فونت‌ها + نمونه + اسکیماها + داکیومنت‌ها)
+   115→- تست یکپارچگی zip: OK — lint نهایی: 0 error
+   116→
+   117→Stage Summary:
+   118→- بسته ریپازیتوری آماده است: extract → git init → commit → push → Import در Vercel
+   119→
+   120→---
+   121→Task ID: 5
+   122→Agent: main
+   123→Task: آخرین مراحل — ساخت فایل zip آماده آپلود به ریپازیتوری (repo-ready zip)
+   124→
+   125→Work Log:
+   126→- بازبینی .gitignore: پوشش کامل node_modules/.next*/.env*/db/logs/download/worklog تأیید شد
+   127→- scripts/make-repo-zip.sh اجرا شد؛ zip از نو ساخته شد تا همه تغییرات Task 4 (فونت‌های self-host، session.tsx، page.tsx و…) داخل آن باشد
+   128→- اسکن امنیتی محتویات zip: بدون .env، بدون *.db، بدون log، بدون node_modules/.next، بدون worklog
+   129→- .env.example فقط placeholder خالی دارد (بدون کلید واقعی)
+   130→- unzip -t صحت آرشیو → OK
+   131→
+   132→Stage Summary:
+   133→- خروجی نهایی: /home/z/my-project/download/arsham-point.zip (356KB، 132 فایل، پوشه ریشه arsham-point/)
+   134→- آماده آپلود مستقیم به GitHub؛ مراحل بعدی: unzip → git init/push → تنظیم Environment Variables طبق README-DEPLOY.md
+   135→
+   136→---
+   137→Task ID: 6
+   138→Agent: main
+   139→Task: صفحه «حساب شما با موفقیت ساخته شد» برای ریدایرکت ایمیل تأیید Supabase
+   140→
+   141→Work Log:
+   142→- public/account-confirmed.html ساخته شد (RTL، دارک تم #0B0C10، گرادیان برند 4285F4→8AB4F8، فونت self-host وزیرمتن)
+   143→- تیک SVG انیمیشنی + دکمه «ورود به حساب» (href=/#/auth) + «بازگشت به صفحه اصلی»
+   144→- اسکریپت hygiene: پاک کردن توکن‌های یک‌بارمصرف Supabase (code/access_token) از URL با history.replaceState
+   145→- رندر تستی با agent-browser روی http.server: ✓ بدون خطای کنسول، اسکرین‌شات در download/account-confirmed-preview.png
+   146→- zip بازسازی شد (133 فایل شامل صفحه جدید)
+   147→
+   148→Stage Summary:
+   149→- آدرس نهایی پس از دیپلوی: /account-confirmed.html → باید در Supabase → Authentication → URL Configuration → Site URL ست شود
+   150→
+   151→---
+   152→Task ID: 7
+   153→Agent: main
+   154→Task: حفظ لاگین (کوکی پشتیبان ۳۰ روزه) — رفع پریدن سشن بعد از بستن مرورگر
+   155→
+   156→Investigation (روی پروداکشن کاربر با agent-browser):
+   157→- /api/status: mode=supabase, ai=http (glm-4.7-flash فعال) ✓
+   158→- /api/auth/me بدون توکن: 200 {"user":null} — مسیر سرور سالم ✓
+   159→- ورود با demo@arshampoint.ir → 400 invalid_credentials ← کاربر دمو در Supabase ساخته نشده!
+   160→- ثبت‌نام → نیاز به تأیید ایمیل (Confirm email روشن است)؛ دامنه arshampoint.ir در Supabase «invalid email» رد می‌شود (نبود MX)
+   161→
+   162→Fix (session cookie mirror):
+   163→- auth.ts: بدون Prisma (serverless-safe)، JWT دارای name، کوکی secure روی Vercel، TTL 30 روز
+   164→- api/auth/me: با Bearer معتبر → setSessionCookie (آینه کوکی)
+   165→- client-auth.ts restoreSession: اول localStorage سپس fallback کوکی
+   166→- login/register: name در توکن؛ .env.example: AUTH_SECRET اضافه شد
+   167→- tsc src=0 خطا، lint=0
+   168→
+   169→Stage Summary:
+   170→- zip بازسازی شد؛ پس از دیپلوی، لاگین با کوکی ۳۰ روزه پشتیبان می‌ماند
+   171→- یادآوری به کاربر: ساخت demo@arshampoint.ir در Supabase Auth + بررسی تنظیم پاک‌شدن site data در مرورگر
+   172→
+   173→═══════════════════════════════════════════════════════
+   174→Task 7 — Session Persistence Fix + SEO Overhaul (2026-10-29)
+   175→═══════════════════════════════════════════════════════
+   176→User report: «لاگین با بستن و دوباره باز کردن برنامه می‌پره — حفظ لاگین کوکی»
+   177→+ درخواست: لوگو، سئو (متا/هدینگ/لینک داخلی)، صفحات سئو، تماس با سازنده
+   178→(آرشام فاضل — arsham.fazel@gmail.com — 00989944825251)، حذف دمو، تست سلامت سایت.
+   179→
+   180→A) PERSISTENT LOGIN — root causes found & fixed:
+   181→1. auth.ts getUserFromRequest: bearer نامعتبر/منقضی → return null (fallback کوکی اجرا نمی‌شد!)
+   182→   → اکنون: bearer fail → getSessionUser() (کوکی آینه‌ای ۳۰ روزه)
+   183→2. api/auth/me: کوکی آینه فقط با Bearer ست می‌شد → اکنون با هر احراز موفق (Bearer یا کوکی)
+   184→   ست/تمدید می‌شود = sliding session ۳۰ روزه
+   185→3. client-auth.ts authLogin/authRegister: syncSessionCookie() بلافاصله بعد از ورود
+   186→   سوپابیس → «انتقال کوکی» در لحظه لاگین (قبلاً فقط در بوت بعدی ست می‌شد)
+   187→4. restoreSession: اگر access_token منقضی بود → refreshSession() صریح قبل از /api/auth/me
+   188→
+   189→Verify (local mode):
+   190→- Set-Cookie: Max-Age=2592000 + HttpOnly + SameSite=lax ✓
+   191→- /me با کوکی → user ✓ / بدون کوکی → null ✓
+   192→- Browser E2E: login → close → state restore → reopen → header «پنل من» ✓
+   193→- click پنل من → /#/app + GET /api/presentations 200 با داده کاربر ✓
+   194→
+   195→B) SEO:
+   196→- layout.tsx: canonical, OG image (/og.png 1200×630), twitter image, icons محلی
+   197→  (icon.svg + favicon-32.png + apple-touch-icon.png), themeColor, keywords+
+   198→  JSON-LD graph: Organization (founder آرشام فاضل + ContactPoint) + WebSite +
+   199→  WebApplication + FAQPage
+   200→- ۶ صفحه سئوی واقعی SSR: /features /faq /about /contact /privacy /terms
+   201→  هر کدام: metadata + canonical + OG + H1/H2/H3(/H4) + breadcrumb JSON-LD +
+   202→  FAQ JSON-LD (faq) + ContactPage JSON-LD (contact) + بلوک «بخش‌های مرتبط»
+   203→  (لینک‌سازی داخلی دوطرفه با فوتر)
+   204→- seo-shell.tsx: پوسته سرور-رندر (header/footer با <Link> واقعی، بدون JS)
+   205→- site-chrome.tsx: ناوبری عمومی از button+navigate → <Link href="/features">…
+   206→  فوتر: لینک‌های واقعی + ایمیل/تلفن (mailto/tel) + اعتبار سازنده + fix «BRAND &&»
+   207→  → BRAND_EN
+   208→- sitemap.ts: ۷ مسیر + robots.txt: Disallow /api/
+   209→- landing.tsx: دکمه امکانات → <Link href="/features">، FAQ → لینک /faq،
+   210→  متن دمو از CTA حذف شد (دمو فقط در حالت local می‌ماند)
+   211→- brand-logo.tsx: نشان SVG اختصاصی (نمایشگر + نمودار رشد + ستاره AI) —
+   212→  در هدر، فوتر، صفحه ورود و صفحات سئو یکدست
+   213→- public/: logo.svg، icon.svg، og.png (تصویر اشتراک)، apple-touch-icon.png،
+   214→  favicon-32.png (ساخته‌شده با اسکرین‌شات مرورگر)
+   215→- static-pages.tsx: کارت تلفن در تماس (نسخه hash برای سازگاری لینک‌های قدیمی)
+   216→
+   217→Verify: lint 0 خطا | / و ۶ صفحه → 200 | SSR: /features = 1×H1 6×H2 3×H3 4×H4 |
+   218→canonical/og absolute | sitemap.xml OK | صفر خطای کنسول مرورگر
+   219→zip بازسازی شد (152 فایل، 524K) — push به GitHub = Redeploy خودکار Vercel
+   220→
+   221→## 1405/08/07 — سئوی عمیق + مجله + دو حالت تولید + UI پویا (v4)
+   222→
+   223→**SEO (درخواست: «سئو هنوز خیلی پایینه»):**
+   224→- content.ts: TAGLINE → «ساخت پاورپوینت فارسی با هوش مصنوعی»؛ KEYWORDS (۲۲ کلیدواژه:
+   225→  ساخت پاورپوینت فارسی با هوش مصنوعی، اسلاید ساز هوش مصنوعی، پاورپوینت آنلاین رایگان، …)
+   226→  + FOOTER_KEYWORDS + MAG_SEO_INTRO؛ DESCRIPTION بازنویسی برند-محور؛ FEATURES+STATS دو حالت
+   227→- layout.tsx: keywords=KEYWORDS؛ JSON-LD: + Blog (@id /mag#blog)
+   228→- کاهش نام Z.ai در متن کاربر: هدر/فوتر هر دو نسخه، landing badge، auth-view،
+   229→  about/features (نسخه hash و SSR)، account status → «موتور هوش مصنوعی آرشام پوینت»
+   230→  (تنها در کامنت‌ها/راهنمای deploy و خطای فنی deck-ai باقی است)
+   231→- deck-generator: meta generator فایل خروجی → «آرشام پوینت (Arsham Point) — …»
+   232→
+   233→**آرشام پوینت مگ (سایت‌مپ + روباتس + مقالات):**
+   234→- src/lib/mag.ts: ۶ مقاله بلند سئویی (~۴۵۰۰ کلمه) با بلوک‌های h2/h3/p/list/steps/
+   235→  quote/callout/links و پیوند داخلی هدفمند:
+   236→  1) persian-powerpoint-with-ai (مقاله کلیدی) 2) online-vs-offline-presentation-tools
+   237→  3) standard-presentation-structure 4) student-presentation-with-ai
+   238→  5) 7-business-presentation-tips 6) html-vs-pptx
+   239→- /mag (فهرست + Blog JSON-LD) و /mag/[slug] (generateStaticParams + generateMetadata +
+   240→  BlogPosting JSON-LD + breadcrumb ناوبری + مقالات مرتبط + H2/H3 سمانتیک)
+   241→- sitemap.ts: + /mag و ۶ مقاله (priority 0.8-0.9)
+   242→- لینک‌سازی داخلی: nav هر دو هدر «مجله»، ستون مگ در فوترها، سطر کلیدواژه‌های فوتر
+   243→  (FOOTER_KEYWORDS)، بخش راهنما + تازه‌ترین مقاله‌ها در landing (8 پیوند داخلی)
+   244→- not-found.tsx (۴۰۴ برندشده با پیوندها)
+   245→
+   246→**دو حالت ساخت (درخواست: «آفلاین و دارای تصویر»):**
+   247→- types.ts: visualMode 'offline'|'image' + imageLinks[] در GeneratePayload
+   248→- deck-types.ts: image/imageCaption برای cover، image برای bullets آیتم،
+   249→  نوع اسلاید جدید image{kicker,title,image,caption,text}
+   250→- deck-ai.ts: systemPrompt(visualMode) — تصویری: schema image + قاعده لینک؛
+   251→  آفلاین: ممنوعیت صریح تصویر؛ userPrompt: تزریق لینک‌های کاربر/کلیدواژه
+   252→  loremflickr؛ safeImageUrl (فقط http(s)≤۵۰۰)؛ normalizeDeck(visualMode) —
+   253→  آفلاین: حذف کامل image fields
+   254→- deck-generator: imgTag (loading=lazy + referrerpolicy=no-referrer +
+   255→  onerror→picsum seed) + رندر cover دونیمه تصویری + thumbnail بولت‌ها +
+   256→  renderImage (تصویر + پنل متن گرادیانی)
+   257→- api/presentations POST: parse visualMode/imageLinks (≤۱۲ لینک معتبر)
+   258→- create-panel: رادیو دو حالته (متنی آفلاین / دارای تصویر) + تکست‌اریای
+   259→  لینک تصاویر (اختیاری، یکی در هر خط، حداکثر ۱۲) + label دکمه داینامیک +
+   260→  GeneratingOverlay با مرحله «انتخاب و درج تصاویر»
+   261→
+   262→**UI (درخواست: «فونت بزرگتر، پس‌زمینه پویا»):**
+   263→- globals.css: html 17.5px (بزرگ‌شدن یکپارچه همه متن‌ها) + line-height 1.8 +
+   264→  ::selection برند؛ پس‌زمینه aurora دو لایه fixed (radial آبی/بنفش/سبز/نارنجی،
+   265→  drift + rotate 30s/46s alternate، GPU transform) + prefers-reduced-motion
+   266→- رپرهای صفحه‌ای bg-[#0B0C10] → bg-transparent (هدرها /85 و بادی کانواس باقی)
+   267→- فرم‌های create-panel: text-[15px] و leading-8
+   268→
+   269→**لوگو اختصاصی (درخواست: «لوگو اختصاصی و کلیدواژه آرشام پوینت»):**
+   270→- brand-logo.tsx: مونوگرام A + نقطه درخشان «پوینت» + کراس‌بار رشدی +
+   271→  جرقه AI، گرادیان آبی→بنفش، رینگ نور بالایی
+   272→- public/logo.svg = icon.svg (بازنویسی) + favicon-32/apple-touch/icon-192
+   273→  (regen با sharp — scripts/regen-icons.cjs) + og.png (اسکرین‌شات og-card.html
+   274→  جدید: badge کلیدواژه + تیتر آرشام پوینت) + icons در layout metadata
+   275→
+   276→Verify: lint 0 خطا | مرورگر: / و /mag و /mag/[slug] و #/auth رندر کامل |
+   277→لاگین دمو OK | تولید تصویری: ۸ اسلاید، ۳ img واقعی loremflickr با
+   278→fallback picsum + اسلاید image | تولید آفلاین: ۸ اسلاید، صفر img |
+   279→hydration warning رادیکس = از قبل موجود (با stash کد قدیمی تایید شد)
+   280→zip بازسازی شد (162 فایل، 560K) — push به GitHub = Redeploy خودکار Vercel
+   281→
+   282→## 1405/08/08 — راست‌چین شدن سوال FAQ + سخت‌سازی سئو (v4.1)
+   283→
+   284→**باگ گزارش‌شده کاربر («این جمله را راست چین کن»):**
+   285→- accordion.tsx (shadcn): کلاس پایه `text-left` → `text-right` — سوال بلند
+   286→  «حالت متنی (آفلاین) با حالت دارای تصویر چه فرقی دارد؟» موقع شکستن خط
+   287→  چپ‌چین دیده می‌شد؛ اکنون در لندینگ و #/faq کاملاً راست‌چین است
+   288→- تأیید بصری با مرورگر (موبایل ۴۸۰px، بازکردن آکاردئون): راست‌چین کامل ✓ صفر خطای کنسول
+   289→
+   290→**نکته مهم: سایت زنده قدیمی است!** بررسی curl سایت زنده: تایتل قدیمی
+   291→(«ساخت پرزنتیشن…»)، بدون canonical/JSON-LD، sitemap.xml = 404، روباتس تک‌خطی
+   292→→ کارشناس رباتی نسخه دیپلوی‌شده قبلی را دیده؛ همه موارد بحرانی گزارش او
+   293→هم‌اکنون در کد موجود است — با Redeploy بعدی برطرف می‌شود.
+   294→
+   295→**بهبودهای سئو (اجرا کردن ایده‌ها):**
+   296→- layout.tsx: حذف FAQPage JSON-LD از گراف سراسری (دستورالعمل گوگل: مارک‌آپ
+   297→  FAQ فقط باید در صفحه‌ای باشد که سوالات دیده می‌شوند)
+   298→- page.tsx: FAQPage JSON-LD مخصوص خانه (دقیقاً ۴ سوال نمایان لندینگ)
+   299→- /faq: تایتل متا → «سوالات متداول ساخت پاورپوینت فارسی با هوش مصنوعی» + ذکر
+   300→  تفاوت دو حالت در description (تقویت کلیدواژه هدف)
+   301→- manifest.ts جدید (PWA): نام/توضیح فارسی، dir=rtl، lang=fa-IR، آیکون‌های
+   302→  ۱۹۲/۵۱۲ + maskable + SVG → /manifest.webmanifest (نصب‌پذیری + سیگنال موبایل)
+   303→- regen-icons.cjs: خروجی جدید icon-512.png (۶۱K)
+   304→
+   305→**فیکس فنی:**
+   306→- site-chrome.tsx: key={n.route} → key={n.href} (خطای TS واقعی — با
+   307→  ignoreBuildErrors از چشم build پنهان بود؛ tsc اکنون src=0 خطا)
+   308→- seed-demo.ts: visualMode:'offline' (سازگاری با GenerateOptions جدید)
+   309→
+   310→**Verify (build تولیدی NEXT_DIST_DIR=.next-build + next start:3100):**
+   311→- /sitemap.xml → 200 application/xml با ۱۴ URL | /robots.txt استاندارد چندخطی
+   312→- /manifest.webmanifest → 200
+   313→- خانه: تایتل «آرشام پوینت | ساخت پاورپوینت فارسی با هوش مصنوعی» + canonical
+   314→  + Organization/WebSite/Blog/WebApplication/FAQPage(۴ سوال) ✓
+   315→- /faq: canonical + FAQPage + BreadcrumbList ✓
+   316→- /mag/[slug]: canonical + BlogPosting + BreadcrumbList (بدون FAQPage اضافی) ✓
+   317→- tsc src=0 | مرورگر: صفر خطای کنسول
+   318→zip بازسازی شد (۱۶۴ فایل، 616K)
+   319→
+   320→## 1405/08/08 — دامنه Apoint.ir + لوگوی نسل ۲ + مقاله فونت + دیباگ کامل (v5)
+   321→
+   322→**دامنه جدید Apoint.ir (درخواست: «با همان نام اما دامنه Apoint.ir»):**
+   323→- content.ts: SITE_URL پیش‌فرض → https://apoint.ir + SITE_DOMAIN='Apoint.ir'
+   324→- robots.txt → Sitemap: https://apoint.ir/sitemap.xml | .env.example → NEXT_PUBLIC_SITE_URL=https://apoint.ir
+   325→- JSON-LD: alternateName سازمان و وب‌سایت → ["Arsham Point","Apoint.ir"] | og-card → «Apoint.ir»
+   326→- کلیدواژه‌ها: + Apoint.ir، apoint، به هم ریختن فونت پاورپوینت، فونت فارسی پرزنتیشن
+   327→
+   328→**لوگوی نسل ۲ (درخواست: «لوگو رو زیبا تر کن»):**
+   329→- brand-logo.tsx + icon.svg بازطراحی: گرادیان چهارمرحله‌ای فیروزه‌ای→آبی→بنفش،
+   330→  هایلایت شیشه‌ای بالا-چپ، سایه عمق پایین، رینگ دوتایی پرمیوم، هاله درخشان دور
+   331→  نقطه «پوینت» (filter feGaussianBlur)، جرقه AI سفید
+   332→- regen-icons: favicon-32 / apple-touch / 192 / 512 بازتولید | og.png جدید (۱۲۰K
+   333→  با Apoint.ir — اسکرین‌شات og-card با networkidle)
+   334→
+   335→**چیپ دامنه کنار لوگو (ماندگار در همه صفحات):**
+   336→- DomainChip جدید در brand-logo.tsx؛ کنار نام برند در: هدر hash-SPA (Logo) +
+   337→  هدر و فوتر صفحات SSR (SeoHeader/SeoFooter) + صفحه ورود (auth-view) + سطر
+   338→  کپی‌رایت هر دو فوتر («— Apoint.ir —»)
+   339→
+   340→**مقاله جامع فونت (درخواست: «مگ چگونه پاورپوینت بدون به هم ریختن فونت در ورژن‌ها»):**
+   341→- /mag/powerpoint-font-fix (~۱۱۰۰ کلمه، ۱۰ دقیقه): چرا فونت می‌پرد (۳ عامل)،
+   342→  Embed قدم‌به‌قدم + محدودیت‌های TTF/مک، تبدیل متن به شکل، PDF پشتیبان، تست
+   343→  دستگاه دوم، جدول ریسک فونت‌های فارسی (بی‌نازانین/ایران‌سنس/وزیرمتن/Tahoma)،
+   344→  راه ریشه‌ای HTML تک‌فایلی، چک‌لیست ۶ موردی + callout اعداد
+   345→- FAQ نهم: «آیا خروجی روی ورژن‌ها به هم نمی‌ریزد؟» (خانه slice(0,4) و /faq خودکار)
+   346→- لینک‌سازی داخلی: FOOTER_KEYWORDS + کارت لندینگ (۶ کارت شد) + «تازه‌ترین
+   347→  مقاله‌ها» لندینگ حالا sort بر اساس تاریخ (جدیدترین اول)
+   348→- sitemap خودکار → ۱۵ URL
+   349→
+   350→**دیباگ کامل + تست (درخواست: «دیباگ کامل و یه تست»):**
+   351→- باگ واقعی پیدا شد: site-chrome key={n.route} → key={n.href} (TS2309 — با
+   352→  ignoreBuildErrors از دید build پنهان بود) | seed-demo visualMode فیکس قبلی
+   353→- نکته استقرار: next start با output:standalone پایدار نیست — محلی باید
+   354→  node .next-build/standalone/server.js (Vercel بی‌تأثیر است)
+   355→- tsc src=0 | eslint 0 | build تمیز (۲۰ صفحه استاتیک، ۷ مقاله SSG)
+   356→- Verify تولیدی (standalone:3100): هر ۱۶ مسیر 200 | canonical=apoint.ir در
+   357→  همه | sitemap 15 URL | robots apoint.ir | manifest 200 | BlogPosting/FAQPage
+   358→  مقاله فونت | alternateName ["Arsham Point","Apoint.ir"]
+   359→- مرورگر E2E: خانه (لوگو ۲ + چیپ + پس‌زمینه aurora، صفر خطای کنسول) | مقاله
+   360→  فونت (1H1/8H2/3H3) | #/auth (چیپ کنار H1) | ورود دمو → فرم دو حالته →
+   361→  تولید واقعی «حفظ فونت در پاورپوینت» → دیک ۸ اسلایدی رندر شد با ناوبری کامل ✓
+   362→zip بازسازی شد — push = Redeploy خودکار
+   363→
+   364→## v4.4 — 2026-10-31 | فیکس ریدایرکت ایمیل + قالب‌های جدید + نمادهای SVG + تصاویر هوشمند
+   365→
+   366→**۱) ریدایرکت تأیید ایمیل (باگ اصلی):**
+   367→- ریشه: authRegister در client-auth.ts به supabase.auth.signUp هیچ emailRedirectTo
+   368→  نمی‌داد → سوپابیس به Site URL (خانه) برمی‌گشت و تنظیم Redirect URLs داشبورد
+   369→  نادیده می‌ماند
+   370→- فیکس: options.signUp حالا emailRedirectTo = origin + '/account-confirmed.html'
+   371→  (داینامیک → vercel.app و apoint.ir هر دو) + fallback استاتیک apoint.ir
+   372→- نکته استقرار: Authentication → URL Configuration باید دقیقاً
+   373→  https://arshampoint.vercel.app/account-confirmed.html و بعداً
+   374→  https://apoint.ir/account-confirmed.html در Redirect URLs باشد
+   375→- صفحه account-confirmed.html از قبل آماده (تیک انیمیشنی + پاک‌سازی توکن از URL)
+   376→
+   377→**۲) قالب‌ها از ۴ به ۸:**
+   378→- ۴ پالت جدید dark+light کامل: red (گوگل‌رد)، teal (فیروزه‌ای)، indigo (نیلی)،
+   379→  gold (طلایی) — deck-types + ACCENTS جنریتور + ACCENTS UI (سواچ رنگی)
+   380→- لیبل UI: «تم رنگی» → «قالب رنگی ارائه»
+   381→
+   382→**۳) دو نوع اسلاید جدید:**
+   383→- comparison: مقایسه دوستونی مزایا/معایب با نماد تیک سبز/ضربدر قرمز (تمام SVG،
+   384→  نوار رنگی بالا) — نرمال‌ساز points و items را هر دو می‌پذیرد
+   385→- section: جداکننده فصل برای عریض‌های ۹+ اسلاید
+   386→- پرامپت FA/EN هدایت می‌کند: آماری→stats، مقایسه/مزایا-معایب→comparison،
+   387→  تاریخی→timeline، ۹+ اسلاید→section
+   388→
+   389→**۴) نمادهای غیرتصویری (SVG درون‌خطی):**
+   390→- کتابخانه ۱۸ نماد استروک ۲۴×۲۴ (target/chart/trend/lightbulb/shield/clock/
+   391→  users/zap/star/globe/search/book/flag/briefcase/heart/pin/mail/calendar)
+   392→- AI برای آیتم‌های bullets فیلد icon می‌دهد → چیپ رنگی SVG (آفلاین هم کار می‌کند)
+   393→- isDeckIcon/DECK_ICONS در deck-types مشترک بین AI و رندرکننده
+   394→
+   395→**۵) تصاویر مرتبط‌تر (حالت دارای تصویر):**
+   396→- پرامپت لینک‌ساز: ۱-۳ کلیدواژه انگلیسی دقیق هر اسلاید (جدا با کاما) +
+   397→  حداقل ۲ اسلاید image برای عریض‌های ۸+ — تست واقعی: solar,iran,desert /
+   398→  iran,sun,energy / solar,farm,iran برای «انرژی خورشیدی در ایران»
+   399→
+   400→**۶) کیفیت:**
+   401→- حالت فشرده bullets (۵+ آیتم): پدینگ/گپ/فونت کوچک‌تر — باگ تداخل کارت پنجم
+   402→  با فوتر (دیده‌شده در E2E) رفع شد
+   403→- آمار قابل دفاع + جمله کامل + محتوای غیرتکراری در پرامپت
+   404→
+   405→**تست:**
+   406→- tsc src=0 | build تمیز (۲۰ صفحه) | /api/status ok
+   407→- تولید واقعی AI (sdk): عریض ۹ اسلایدی دورکاری — comparison با ۱۲ تیک/ضربدر،
+   408→  ۳۱ نماد SVG، gold تیره/روشن، صفر <img> در حالت آفلاین ✓
+   409→- عریض ۸ اسلایدی انرژی خورشیدی — ۳ تصویر تاپیکال + teal ✓
+   410→- رندر سنتیتک (test-render.ts): tight-mode/section/comparison/indigo ✓
+   411→- مرورگر: جلد/نمای کلی/مقایسه/جداکننده/فشرده همگی اسکرین‌شات تأیید | ۸ قالب در
+   412→  پنل ساخت ۲×۴ | هدر با چیپ Apoint.ir سالم | کنسول بدون خطا
+   413→
+   414→---
+   415→Task ID: N (تجاری‌سازی)
+   416→Agent: Main Agent (Z.ai)
+   417→Task: تجاری‌سازی آرشام پوینت — قالب‌های بیشتر (۱۲)، پلن‌ها و سهمیه ماهانه، درگاه زرین‌پال، صفحه قیمت‌گذاری، نشان برند ویروسی و ارتقای کیفیت
+   418→
+   419→Work Log:
+   420→
+   421→**۱) قالب‌های رنگی: ۸ → ۱۲**
+   422→- deck-types: DECK_ACCENTS + rose/lime/bronze/slate با ACCENT_LABELS فارسی
+   423→- deck-generator: پالت کامل dark+light برای ۴ قالب جدید (رندر و grad سازگار)
+   424→- zslide/types: چیپ‌های انتخابگر UI (۱۲ گزینه) — تست مرورگر: ۱۲ دکمه در پنل ساخت
+   425→
+   426→**۲) پلن‌ها و سهمیه ماهانه (lib/plan.ts)**
+   427→- PlanId free/pro + FREE_MONTHLY_QUOTA env (پیش‌فرض ۵)
+   428→- getPlan/monthlyUsage/getUsage/activatePro با دو پیاده‌سازی (Supabase سرویس‌رول / Prisma SQLite) و fallback امن به free
+   429→- مدل Prisma Subscription + جدول Supabase در supabase-subscriptions.sql (RLS: کاربر فقط اشتراک خودش)
+   430→- /api/usage (GET): plan/used/quota/remaining/unlimited
+   431→- POST /api/presentations: سهمیه قبل از تولید؛ ۴۰۲ + quotaExceeded با پیام فارسی
+   432→
+   433→**۳) درگاه پرداخت زرین‌پال**
+   434→- lib/zarinpal.ts: URLها + zarinpalAmount (ZARINPAL_AMOUNT_RIALS، پیش‌فرض ۱٬۴۹۰٬۰۰۰ ریال = ۱۴۹ هزار تومان) + امضای HMAC callback (AUTH_SECRET)
+   435→- /api/billing/zarinpal/request: مرچنت الزامی؛ بدون مرچنت → ۵۰۳ با پیام «به‌زودی + تماس با پشتیبانی» (تست شد)
+   436→- /api/billing/zarinpal/verify: وریفای کد ۱۰۰/۱۰۱ → activatePro یک‌ماهه → ریدایرکت /pricing?payment=success|failed؛ sig نامعتبر → failed
+   437→
+   438→**۴) نشان برند ویروسی در خروجی**
+   439→- generateDeckHTML(opts.branding): دکمه «✨ آرشام پوینت» با لینک apoint.ir در نوار کنترل خروجی (رایگان)؛ pro بدون نشان
+   440→- API بر اساس plan تصمیم می‌گیرد — تست دو طرفه: free → #credit موجود؛ pro → #credit حذف
+   441→
+   442→**۵) صفحه /pricing + سیم‌کشی تجاری**
+   443→- pricing/page.tsx (متادیتا + FAQPage JSON-LD scoped) + pricing.tsx (۳ کارت پلن، دکمه زرین‌پال، بنر success/failed از query)
+   444→- nav «قیمت‌ها» + فوتر محصول + sitemap (priority 0.8) + کلیدواژه‌های قیمت‌گذاری در content.ts
+   445→- landing: سکشن تیزر ۳ پلن + چیپ‌های هیرو (۱۲ قالب) + CTA به /pricing
+   446→- account: کارت پلن (تاج طلایی pro / پیشرفت مصرف رایگان «۱ از ۵») + CTA ارتقا
+   447→- content: ۲ FAQ تجاری جدید (رایگان بودن + نشان برند)؛ STATS=۱۱ چیدمان/۱۲ قالب
+   448→- یکسان‌سازی متن‌ها: «چهار پالت/هشت چیدمان» → «۱۲ قالب/۱۱ چیدمان» در features، static-pages و mag
+   449→
+   450→**تست:**
+   451→- tsc src=۰ خطا | eslint تمیز | build ایزوله تمیز (۲۱ مسیر شامل /pricing و /api/usage و billing/*)
+   452→- مرورگر E2E: ثبت‌نام «تست تجاری» → پنل (۱۲ قالب) → تولید گلگون ۸ اسلایدی (۲۵ SVG، #credit✓، primary #F7A8C4) → حساب (۱/۵ + CTA) → زرین‌پال بدون مرچنت: ۵۰۳ پیام دوستانه ✓
+   453→- جریان pro: اشتراک دستی → «پلن حرفه‌ای/فعال ✓» → تولید gold بدون نشان (#credit=false) ✓
+   454→- اسکرین‌شات‌ها: pricing، account، landing-teaser، preview گلگون — همگی سالم
+   455→
+   456→Stage Summary:
+   457→- محصول حالا چرخه درآمدی کامل دارد: رایگان محدود (۵/ماه + نشان برند) → حرفه‌ای نامحدود (۱۴۹ هزار تومان/ماه زرین‌پال) → سازمانی (تماس)
+   458→- برای فعال‌سازی پرداخت در پروداکشن: ZARINPAL_MERCHANT_ID و ZARINPAL_AMOUNT_RIALS در Vercel + اجرای supabase-subscriptions.sql در SQL Editor
+   459→- پرداخت‌های واقعی با تأیید کد ۱۰۰/۱۰۱ خودکار یک‌ماهه اشتراک می‌سازد؛ تمدید دستی بدون خودکار تمدید
+   460→
+   461→---
+   462→Task ID: N+1 (تجاری‌سازی — سهمیه روزانه)
+   463→Agent: Main Agent (Z.ai)
+   464→Task: تغییر مبناي سهمیه و اشتراک از ماه میلادی به دوره‌های شماره‌دار — رایگان ۳ ارائه در روز (پنجره ۲۴ ساعته لغزان)، حرفه‌ای دوره دقیقاً ۳۰ روزه
+   465→
+   466→Work Log:
+   467→
+   468→**۱) هسته تجاری (lib/plan.ts)**
+   469→- FREE_MONTHLY_QUOTA (۵/ماه میلادی) → FREE_DAILY_QUOTA = ۳ در هر ۲۴ ساعت (env: FREE_DAILY_QUOTA)
+   470→- monthlyUsage (truncate اول ماه UTC) → dailyUsage با پنجره لغزان ۲۴ ساعته — صفر وابستگی به تقویم
+   471→- activatePro: setMonth(+1) → now + periods × PRO_PERIOD_DAYS × ۲۴h (env: PRO_PERIOD_DAYS، پیش‌فرض ۳۰) — خطای پرش ماه میلادی (۳۱ ژانویه → ۳ مارس) ریشه‌کن شد
+   472→- UsageInfo جدید: periodEnd (پایان دوره pro برای نمایش در حساب) + nextFreeAt (وقتی سهمیه پر است، قدیمی‌ترین ارائه + ۲۴h)
+   473→- quotaExceededMessage با ارقام فارسی (toFa)
+   474→
+   475→**۲) متن‌های تجاری (۷ فایل)**
+   476→- pricing.tsx: «روزانه تا ۳ ارائه» / «تومان / ۳۰ روز» / «ارائه نامحدود در دوره ۳۰ روزه» / بنر موفقیت «به مدت ۳۰ روز»
+   477→- pricing/page.tsx: متادیتا + FAQ — «پنجره لغزان ۲۴ ساعته، مستقل از ماه میلادی» / «هر دوره دقیقاً ۳۰ روز (نه یک ماه تقویمی)»
+   478→- landing.tsx: تیزر «۳ ارائه در روز» + «۱۴۹ هزار تومان / ۳۰ روز» | content.ts: FAQ اصلی
+   479→- account.tsx: «مصرف روزانه (۲۴ ساعت گذشته)» + هشدار با ساعت دقیق آزاد شدن اسلات + pro نشان «تا {تاریخ فارسی}»
+   480→- zarinpal request/verify: توضیح تراکنش «اشتراک ۳۰ روزه»
+   481→
+   482→**۳) مستندات (README-DEPLOY.md)**
+   483→- بخش جدید «تجاری‌سازی — پلن‌ها، سهمیه و درگاه پرداخت»: جدول subscriptions، ۴ متغیر env (ZARINPAL_MERCHANT_ID / ZARINPAL_AMOUNT_RIALS / FREE_DAILY_QUOTA / PRO_PERIOD_DAYS) + ۲ FAQ جدید
+   484→
+   485→**۴) اسکریپت‌های تست (scripts/)**
+   486→- test-quota-logic.ts: ۸ تست سبز — پنجره ۲۴h (۲۳h داخل / ۲۵h خارج)، ۳۰d ≠ ماه میلادی (اثبات باگ setMonth: Jan31→Mar3)، periodEnd دقیقاً ۳۰.۰۰۰۰ روز، اشتراک منقضی → free
+   487→- activate-pro-test.ts: فعال‌سازی دستی pro برای تست
+   488→
+   489→**تست E2E (سرور production روی 3100):**
+   490→- ثبت‌نام → ۳ ارائه (۲۰۰×۳) → چهارم: HTTP 402 + «سهمیه روزانه پلن رایگان (۳ ارائه در هر ۲۴ ساعت) تمام شد» + nextFreeAt = اولین ارائه + ۲۴h ✓
+   491→- فعال‌سازی pro → /api/usage: unlimited + periodEnd (+۳۰ روز دقیق) → ارائه چهارم ۲۰۰ + صفر #credit (برند حذف) ✓
+   492→- مرورگر: /pricing (۳ کارت با مبنا ۳۰ روز) + حساب («۳ از ۳» نوار قرمز + ساعت آزادسازی ۲۱:۰۰) ✓
+   493→- نکته رفع اشکال: سرور کهنه جلسه قبل روی پورت 3100 (EADDRINUSE) خروجی بیلد کهنه می‌داد — pkill و راه‌اندازی مجدد
+   494→- tsc src=0 | eslint=0 | build ایزوله ۲۱ صفحه ✓ | zip بازسازی: 784KB / 178 فایل ✓
+   495→
+   496→Stage Summary:
+   497→- مدل تجاری نهایی: رایگان = ۳ ارائه در هر ۲۴ ساعت (لغزان، بی‌تقویم) + نشان برند | حرفه‌ای = نامحدود + بدون برند، هر دوره دقیقاً ۳۰ روز (۱۴۹ هزار تومان، زرین‌پال) | سازمانی = تماس
+   498→- برای پروداکشن: اجرای supabase-subscriptions.sql + ZARINPAL_MERCHANT_ID در Vercel (اختیاری: FREE_DAILY_QUOTA / PRO_PERIOD_DAYS)
+   499→
+   500→---
+   501→Task ID: N+2 (۱۲ قالب طراحی + انتخاب دستی حرفه‌ای)
+   502→Agent: Main Agent (Z.ai)
+   503→Task: واگرایی واقعی پاورها — ۱۲ قالب طراحی متمایز (نه فقط رنگ)، انتخاب هوشمند قالب بر اساس موضوع، انتخاب دستی قالب/نوع اسلاید ویژه حرفه‌ای، حذف «تهیه شده توسط»، رنگ‌فشرده موبایل
+   504→
+   505→Work Log:
+   506→
+   507→**۱) موتور ۱۲ قالب طراحی (lib/deck-styles.ts — فایل جدید)**
+   508→- هر قالب = زبان طراحی کامل: توکن‌های رنگ زمینه، فونت تیتر (Vazirmatn/Markazi Text/Lalezar/Amiri از Google Fonts)، فرم کارت (۴ سطح گردی)، ۵ واریانت جلد (center/split/band/frame/minimal) و ۷ الگوی تزئینی (.slide background-image: glow/flat/grid/stripes/frame/corner/dots)
+   509→- قالب‌ها: مدرن، مینیمال، شب نئون، اکادمیک، مجله‌ای، استارتاپ، شیشه‌ای، کلاسیک رسمی، تایپوگرافی درشت، طبیعت، شرکتی، خط فارسی
+   510→- pickStyleForTopic: ۸ قانون کلیدواژه فارسی/انگلیسی (فناوری→شب نئون، بازاریابی→استارتاپ، آموزش→اکادمیک، مالی→شرکتی، …) + هش قطعی موضوع برای بقیه — هر موضوع یک قالب
+   511→- باگ specificity رفع شد: BASE_CSS از html.light (0,1,1) استفاده می‌کند که با html.st-x برابر بود؛ توکن تیره حالا html.st-x:not(.light) و روشن html.st-x.light — شب نئون در تم روشن دیگر تیره نمی‌ماند
+   512→- ۱۲ قالب در generator تزریق می‌شود: class="st-*" روی html + styleCss تیره/روشن + فونت اضافی در لینک Google Fonts
+   513→
+   514→**۲) رندر (deck-generator.ts)**
+   515→- renderCover: ۵ واریانت ساختاری — split (متن + پنل گرافیکی با نماد SVG بزرگ و دایره‌های تزئینی)، band (نوار گرادیانی دور عنوان)، frame (قاب با ۴ نقطه نورانی گوشه)، minimal (تایپ درشت هم‌تراز لبه)، center
+   516→- renderSection هم واریانت band/frame گرفت
+   517→- «تهیه شده توسط» و نام ارائه‌دهنده/اعضا کامل حذف شد (فقط عنوان/زیرعنوان/تاریخ)
+   518→
+   519→**۳) هوشمندی AI (deck-ai.ts)**
+   520→- قوانین جدید پرامپت: ترکیب انواع اسلاید متناسب با موضوع، دو اسلاید متوالی هم‌نوع نباشند، استفاده از کل منوی ۸ نوع
+   521→- preferredLayouts (انتخاب دستی pro): اولویت انواع در پرامپت فارسی/انگلیسی
+   522→- نام ارائه‌دهنده از schema و normalize حذف شد + دستور صریح «نام اعضا را نیاور»
+   523→
+   524→**۴) گیت تجاری (presentations/route.ts)**
+   525→- body.style + body.layouts پارس و اعتبارسنجی می‌شود؛ اگر دستی بود و پلن free → 402 + proFeature:true با پیام ارتقا
+   526→- قالب نهایی: دستی (pro) یا pickStyleForTopic — در generateDeckHTML اعمال
+   527→
+   528→**۵) UI (create-panel.tsx بازطراحی)**
+   529→- رنگ غالب: ۱۲ دکمه بلند → طیف فشرده ۱۲ دایره‌ای (۲ ردیف موبایل) با حلقه انتخاب + برچسب انتخاب فعلی
+   530→- قالب طراحی: منوی کشویی (خودکار + ۱۲ قالب با توضیح) — free: قفل با نشان طلایی «ویژه حرفه‌ای — ارتقا» (لینک /pricing)
+   531→- نوع اسلایدها: چیپ‌های toggle (حداکثر ۴ از ۹ نوع) — free: قفل + نشان
+   532→- پلن از /api/usage در mount خوانده می‌شود؛ استایل/لی‌آوت فقط برای pro در payload
+   533→
+   534→**۶) متن‌ها**: pricing (رایگان: قالب هوشمند؛ pro: انتخاب دستی ۱۲ قالب و نوع اسلاید)، landing teaser، pricing/page lead، content FAQ+STATS، features و static-pages («کنترل کامل روی ظاهر» بازنویسی)
+   535→
+   536→**تست:**
+   537→- tsc src=0 | eslint src=0 | build ایزوله تمیز
+   538→- test-styles.ts: ۱۲ قالب رندر + صفر «تهیه» + نگاشت موضوع→قالب (۸ قانون + هش)
+   539→- مرورگر: استارتاپ (split/نوار مورب/Lalezar) ✓، اکادمیک (قاب/سریف) ✓، فارسی روشن (کرم/لاله‌زار/قاب) ✓، شب نئون تم روشن بعد از fix ✓
+   540→- E2E API: free + دستی → 402 proFeature ✓ | free خودکار «هوش مصنوعی در آموزش پزشکی» → st-midnight ✓ | pro دستی startup + layouts stats/comparison/timeline → st-startup + Lalezar + stripes + هر ۳ نوع در خروجی ✓
+   541→- موبایل ۳۹۰px: منوی کشویی قالب + چیپ‌های جمع‌شده + طیف رنگ ۲ ردیفی ✓ | free: ۲ نشان ارتقا + کنترل قفل (بعد از hard reload — ناوبری hash-only رفرش نمی‌کند)
+   542→- zip: 792KB / 179 فایل ✓
+   543→
+   544→Stage Summary:
+   545→- پاورها دیگر شبیه هم نیستند: ۱۲ قالب × ۱۲ رنگ × ۱۱ چیدمان؛ قالب به‌صورت هوشمند از موضوع انتخاب می‌شود
+   546→- کنترل دستی قالب + نوع اسلاید = انگیزه ارتقای جدید در پلن حرفه‌ای (402 با proFeature)
+   547→- «تهیه شده توسط» از جلد حذف شد
+   548→
+   549→---
+   550→Task ID: next
+   551→Agent: Main Agent (Z.ai)
+   552→Task: رفع دو باگ گزارش کاربر («بیش از ۸ اسلاید کار نمی‌کند» + «نوار تعداد اسلاید برعکس است») + تکمیل «تهیه‌شده توسط» + ارتقای کیفیت چیدمان
+   553→
+   554→Work Log:
+   555→- باگ نوار اسلایدر: Radix useDirection از سند rtl نمی‌خواند (localDir||globalDir||'ltr') → نوار LTR می‌ماند و برچسب‌های ۴/۱۴ برعکس دیده می‌شدند؛ fix با dir="rtl" روی Slider در create-panel؛ تأیید هندسی (fill از راست، thumb ۴۰٪ از راست برای ۸) + کیبورد (ArrowLeft→۹، Home→۴، End→۱۴) در موبایل ۳۹۰px
+   556→- باگ تعداد اسلاید: سه عامل هم‌زمان — (۱) سقف خروجی پیش‌فرض مدل JSON بلند ۹-۱۴ اسلایدی را قطع می‌کرد → max_tokens: 8192 روی فراخوانی HTTP Z.ai؛ (۲) پرامپت فقط مکالمه‌ای بود («دقیقاً N اسلاید») و مدل به ۸ اسلاید تمایل داشت → تابع planSlideTypes چیدمان قطعی Nتایی می‌سازد (cover/agenda/…/conclusion) با هیچ دو اسلاید پشت‌سرِهم هم‌نوع، درج جداکننده بخش برای ≥۹ اسلاید، اسلاید image فقط در حالت تصویری، چرخش استخر انواع با هش موضوع (دو موضوع = دو ساختار)، و جای‌گذاری انواع اولویت کاربر حرفه‌ای در قلب چیدمان؛ (۳) هیچ اعتبارسنجی تعداد نبود → generateDeckWithAI دو تلاش می‌کند، اگر تعداد < want-1 باشد بهترین تلاش را نگه می‌دارد و دوباره می‌خواهد؛ fixStructure ترتیب cover/conclusion را تضمین و تعداد اضافه را هوشمند (حفظ جلد و پایان) برش می‌زند
+   557→- «تهیه‌شده توسط» کامل شد: ورودی Textarea در فرم (هر خط یک نام، حداکثر ۶) → GeneratePayload.authors → پارس در API (پاک‌سازی طول/تعداد) → deck.authors → authorsLine در deck-generator روی همه ۶ واریانت جلد + اسلاید conclusion، دوزبانه (فارسی/انگلیسی) با نماد users؛ مدل همچنان ممنوع ساخت نام
+   558→- تست واحد scripts/test-slide-plan.ts: ۵۰+ چک سبز (تعداد ۴..۱۴ در دو حالت، ساختار، بدون هم‌جوارِ هم‌نوع، تنوع بین موضوعی، image فقط در حالت تصویری، اولویت‌های pro، fixStructure)
+   559→- E2E واقعی: ۱۲ اسلاید در ۲۲.۹ ثانیه و ۱۴ اسلاید در ۲۷.۱ ثانیه — هر دو دقیقاً همان تعداد؛ «تهیه‌شده توسط» روی جلد و پایان؛ ناوبری ۱۲ dots
+   560→- مرور مرورگر: فرم موبایل (فیلد نام اعضا + طیف فشرده ۱۲ رنگ در دو ردیف)، جلد و overview و conclusion ارائه ۱۲ اسلایدی اسکرین‌شات و تأیید شد
+   561→- tsc تمیز (src)، eslint تمیز، build ایزوله موفق
+   562→
+   563→Stage Summary:
+   564→- دو باگ کاربر رفع و با تست واقعی تأیید شد؛ ارائه ۹ تا ۱۴ اسلایدی حالا دقیقاً همان تعداد را می‌سازد
+   565→- چیدمان اسلایدها از پیش برنامه‌ریزی می‌شود → تنوع واقعی بین پاورها؛ پلن حرفه‌ای همچنان کنترل دستی دارد
+   566→- «تهیه‌شده توسط» ویژگی رایگان روی جلد و اسلاید پایانی
+   567→- نکته استقرار: بدون تغییر اسکیما/متغیر محیطی جدید — فقط deploy مجدد کافی است
+   568→
+   569→---
+   570→Task ID: next+1
+   571→Agent: Main Agent (Z.ai)
+   572→Task: صفحه بررسی سفارش قبل از درگاه + آدرس تیم پشتیبانی + مقایسه با ابزارهای تجاری خارجی + منطقی‌سازی قیمت‌گذاری
+   573→
+   574→Work Log:
+   575→- صفحه /checkout جدید (بررسی سفارش — گام ۱ از ۲): خلاصه سفارش (محصول، دوره دقیقاً ۳۰ روزه، ۱۴۹٬۰۰۰ تومان + معادل ریال درگاه ۱٬۴۹۰٬۰۰۰، ≈۴٬۹۶۷ تومان در روز)، فهرست امکانات، ۴ بند شرایط، چک‌باکس اجباری پذیرش (دکمه پرداخت تا پذیرش disable است)، سه گام خرید (بررسی → پرداخت زرین‌پال → فعال‌سازی آنی)، بلوک پشتیبانی با ایمیل/تلفن/آدرس
+   576→- سه حالت کاربر در checkout: مهمان → «اول وارد شوید» با CTA ثبت‌نام؛ pro فعال → «اشتراک فعال است ✓» با تاریخ پایان (faDate)؛ رایگان → فرم کامل بررسی سفارش — همه در مرورگر تأیید شد
+   577→- دکمه «پرداخت با زرین‌پال» در /pricing حذف و به Link «خرید اشتراک — بررسی سفارش → /checkout» تبدیل شد (دیگر مستقیم به درگاه نمی‌رود)؛ بنرهای نتیجه پرداخت در /pricing برای پیوندهای قدیمی حفظ شد
+   578→- کال‌بک verify زرین‌پال حالا به /checkout?payment=success برمی‌گردد (قبلاً /pricing)؛ پرداخت موفق در همان صفحه بررسی نمایش داده می‌شود
+   579→- آدرس تیم پشتیبانی «ایران، اصفهان، نجف‌آباد، خیابان شهید حججی، مجموعه فاضل» → SUPPORT_ADDRESS/SUPPORT_ADDRESS_SHORT در content.ts؛ درج در صفحه تماس (کارت آدرس + PostalAddress در JSON-LD)، فوتر همه صفحات SEO، صفحه قیمت‌گذاری و صفحه بررسی سفارش («تهران، ایران» غلط قبلی اصلاح شد)
+   580→- مقایسه با ابزارهای تجاری: جدول ۵ ردیفه (آرشام پوینت برجسته، Gamma، Canva AI، Beautiful.ai، Copilot در پاورپوینت) × ۵ ستون (شروع پلن پولی، ارائه رایگان، فارسی راست‌چین، پرداخت تومانی) در /pricing — قیمت‌ها از صفحات رسمی (Gamma Plus ~۱۰$/ماه، Canva Pro ~۱۵$/ماه، Beautiful.ai ۱۲-۴۵$/ماه، Copilot ~۲۰$+آفیس) با سلب مسئولیت «تقریبی، پاییز ۱۴۰۵»
+   581→- منطقی‌سازی: «اولویت در تولید (صف سریع‌تر)» ادعای پیاده‌نشده حذف و با «تمدید دستی — بدون کسر خودکار» صادقانه جایگزین شد؛ برچسب ≈۵٬۰۰۰ تومان در روز زیر قیمت pro؛ توضیح برتری پلن رایگان (۳ ارائه/روز همیشه در برابر اعتبار یک‌بارمصرف Gamma)؛ سوال FAQ «فرق با گاما/کنوا» + «خرید چطور انجام می‌شود؟» هم در متن هم در JSON-LD؛ RelatedLinks به /checkout
+   582→- SEO: صفحه /checkout متادیتا + canonical + Product/Offer JSON-LD (IRR 1,490,000) دارد
+   583→- منبع یکسان مالی: PRO_PLAN در content.ts (days/priceToman/priceRials/perDayToman) — قیمت‌گذاری و checkout از همین ثابت می‌خوانند
+   584→- tsc تمیز (خطاهای باقی‌مانده فقط examples/ و skills/ خارج از پروژه)، eslint تمیز، build ایزوله موفق (route /checkout ○ static)
+   585→- E2E مرورگر: /pricing → جدول مقایسه + آدرس + قیمت ✓ | کلیک خرید → /checkout مهمان ✓ | ورود دمو → فرم کامل (۱۴۹٬۰۰۰/۱٬۴۹۰٬۰۰۰ ریال/۴٬۹۶۷ در روز/مجموعه فاضل) ✓ | چک‌باکس گیت (disabled=true→false) ✓ | پرداخت بدون مرچنت → پیام دوستانه «به‌زودی» ✓ | موبایل ۳۹۰px: رندر درست + جدول مقایسه اسکرول‌پذیر (720>344) ✓
+   586→- رگرسیون تولید: ۱۲ اسلاید ✓ و ۱۴ اسلاید (سقف) ✓ — دقیقاً همان تعداد؛ تنوع چیدمان: ۱۰ نوع یکتا، صفر جفت پشت‌سرهم هم‌نوع؛ «تهیه‌شده توسط» + نام اعضا در HTML رندرشده ✓
+   587→- نکته استقرار: بدون تغییر اسکیما/متغیر محیطی جدید — فقط redeploy؛ اگر قبلاً /pricing?payment=success را جای(bookmark) داشتید، حالا /checkout?payment=success است
+   588→

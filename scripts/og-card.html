@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @font-face {
+    font-family: 'Vazirmatn';
+    src: url('/fonts/vazirmatn-arabic.woff2') format('woff2');
+    font-weight: 100 900;
+    unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FEFF;
+  }
+  @font-face {
+    font-family: 'Vazirmatn';
+    src: url('/fonts/vazirmatn-latin.woff2') format('woff2');
+    font-weight: 100 900;
+    unicode-range: U+0000-00FF, U+2000-206F;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    font-family: 'Vazirmatn', Tahoma, sans-serif;
+    background: #0B0C10;
+    color: #E8EAED;
+    position: relative;
+  }
+  .glow-a { position: absolute; top: -220px; right: -160px; width: 560px; height: 560px; border-radius: 9999px; background: rgba(66,133,244,.16); filter: blur(90px); }
+  .glow-b { position: absolute; bottom: -240px; left: -140px; width: 520px; height: 520px; border-radius: 9999px; background: rgba(138,180,248,.13); filter: blur(90px); }
+  .wrap { position: relative; height: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 96px; }
+  .right { max-width: 700px; display: grid; gap: 26px; }
+  .badge { display: inline-flex; align-items: center; gap: 10px; width: fit-content; font-size: 22px; font-weight: 700; color: #8AB4F8; background: rgba(138,180,248,.1); border: 1.5px solid rgba(138,180,248,.3); border-radius: 999px; padding: 10px 24px; }
+  h1 { font-size: 62px; font-weight: 900; line-height: 1.5; }
+  h1 .grad { background: linear-gradient(270deg, #8AB4F8, #4285F4); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  p { font-size: 27px; color: #9AA0A6; line-height: 1.9; }
+  .site { margin-top: 8px; font-size: 24px; font-weight: 700; color: #E8EAED; direction: ltr; text-align: left; }
+  .mock { width: 360px; border-radius: 28px; border: 1.5px solid rgba(255,255,255,.12); background: #101319; box-shadow: 0 40px 90px rgba(0,0,0,.55); overflow: hidden; }
+  .bar { display: flex; gap: 7px; padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,.06); background: #0D0F14; }
+  .dot { width: 11px; height: 11px; border-radius: 999px; }
+  .inner { padding: 30px; display: grid; gap: 16px; background: radial-gradient(280px 150px at 85% -10%, rgba(138,180,248,.2), transparent 60%); }
+  .sk { border-radius: 10px; }
+  .sk.t { height: 26px; width: 78%; background: linear-gradient(270deg, rgba(138,180,248,.85), rgba(66,133,244,.85)); }
+  .sk.a { height: 13px; width: 52%; background: rgba(255,255,255,.16); }
+  .sk.b { height: 13px; width: 68%; background: rgba(255,255,255,.1); }
+  .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; padding-top: 8px; }
+  .cell { border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); border-radius: 12px; padding: 16px 0; text-align: center; font-size: 15px; font-weight: 700; color: #9AA0A6; }
+</style>
+</head>
+<body>
+  <div class="glow-a"></div>
+  <div class="glow-b"></div>
+  <div class="wrap">
+    <div class="right">
+      <span class="badge">⚡ ساخت پاورپوینت فارسی با هوش مصنوعی</span>
+      <h1><span class="grad">آرشام پوینت</span><br />تو فقط موضوع را بگو</h1>
+      <p>پرزنتیشن کامل فارسی و راست‌چین با دو حالت متنی و دارای تصویر، در چند ثانیه آماده اجرا و دانلود است.</p>
+      <div class="site">Apoint.ir</div>
+    </div>
+    <div class="mock">
+      <div class="bar">
+        <span class="dot" style="background:rgba(242,139,130,.75)"></span>
+        <span class="dot" style="background:rgba(255,183,95,.75)"></span>
+        <span class="dot" style="background:rgba(129,201,149,.75)"></span>
+      </div>
+      <div class="inner">
+        <span class="sk t"></span>
+        <span class="sk a"></span>
+        <span class="sk b"></span>
+        <div class="row">
+          <div class="cell">۸ اسلاید</div>
+          <div class="cell">۴ پالت</div>
+          <div class="cell">۲ تم</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

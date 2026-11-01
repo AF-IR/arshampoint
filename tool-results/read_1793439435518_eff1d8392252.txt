@@ -1,0 +1,510 @@
+     1→import type { DeckJSON, DeckSlide, DeckAccent, DeckLanguage } from '@/lib/deck-types'
+     2→
+     3→/* ═════════ DeckHTML Generator ═════════
+     4→   Renders DeckJSON as a standalone single-file HTML presentation
+     5→   (RTL Persian, 1280x720 canvas, midnight/daylight dual theme,
+     6→   keyboard + touch navigation, overview, print support). */
+     7→
+     8→const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
+     9→const faNum = (n: number | string): string =>
+    10→  String(n).replace(/\d/g, (d) => FA_DIGITS[Number(d)])
+    11→
+    12→function esc(s: unknown): string {
+    13→  return String(s ?? '')
+    14→    .replace(/&/g, '&amp;')
+    15→    .replace(/</g, '&lt;')
+    16→    .replace(/>/g, '&gt;')
+    17→    .replace(/"/g, '&quot;')
+    18→    .replace(/'/g, '&#39;')
+    19→}
+    20→
+    21→/* ── Accent palettes (dark + light) ── */
+    22→interface AccentPal {
+    23→  primary: string
+    24→  deep: string
+    25→  tint: string
+    26→  tintB: string
+    27→  glow: string
+    28→  grad: string
+    29→}
+    30→const ACCENTS: Record<DeckAccent, { dark: AccentPal; light: AccentPal }> = {
+    31→  blue: {
+    32→    dark: { primary: '#8AB4F8', deep: '#669DF6', tint: 'rgba(138,180,248,.15)', tintB: 'rgba(138,180,248,.16)', glow: 'rgba(138,180,248,.09)', grad: 'linear-gradient(90deg,#8AB4F8,#4285F4)' },
+    33→    light: { primary: '#1A73E8', deep: '#185ABC', tint: 'rgba(26,115,232,.09)', tintB: 'rgba(26,115,232,.12)', glow: 'rgba(26,115,232,.07)', grad: 'linear-gradient(90deg,#4285F4,#1A73E8)' },
+    34→  },
+    35→  green: {
+    36→    dark: { primary: '#81C995', deep: '#5BB974', tint: 'rgba(129,201,149,.15)', tintB: 'rgba(129,201,149,.18)', glow: 'rgba(129,201,149,.09)', grad: 'linear-gradient(90deg,#81C995,#34A853)' },
+    37→    light: { primary: '#188038', deep: '#0D652D', tint: 'rgba(24,128,56,.09)', tintB: 'rgba(24,128,56,.12)', glow: 'rgba(24,128,56,.06)', grad: 'linear-gradient(90deg,#34A853,#188038)' },
+    38→  },
+    39→  orange: {
+    40→    dark: { primary: '#FFB75F', deep: '#F5A03C', tint: 'rgba(255,183,95,.15)', tintB: 'rgba(255,183,95,.18)', glow: 'rgba(255,183,95,.10)', grad: 'linear-gradient(90deg,#FFB75F,#F29900)' },
+    41→    light: { primary: '#E8710A', deep: '#B06000', tint: 'rgba(232,113,10,.10)', tintB: 'rgba(232,113,10,.13)', glow: 'rgba(232,113,10,.07)', grad: 'linear-gradient(90deg,#F9AB00,#E8710A)' },
+    42→  },
+    43→  purple: {
+    44→    dark: { primary: '#C58AF9', deep: '#A142F4', tint: 'rgba(197,138,249,.16)', tintB: 'rgba(197,138,249,.20)', glow: 'rgba(197,138,249,.10)', grad: 'linear-gradient(90deg,#C58AF9,#A142F4)' },
+    45→    light: { primary: '#9334E6', deep: '#7627BB', tint: 'rgba(147,52,230,.10)', tintB: 'rgba(147,52,230,.13)', glow: 'rgba(147,52,230,.07)', grad: 'linear-gradient(90deg,#A142F4,#9334E6)' },
+    46→  },
+    47→}
+    48→
+    49→/* ── Base CSS (theme-agnostic + neutral vars) ── */
+    50→const BASE_CSS = `
+    51→*{box-sizing:border-box;margin:0;padding:0}
+    52→html,body{height:100%;overflow:hidden;background:var(--page);direction:rtl;font-family:'Vazirmatn',Tahoma,'Segoe UI',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+    53→:root{
+    54→  --bg:#15171C;--bg-tint:#191C22;--surface:#1E2127;
+    55→  --ink:#E8EAED;--ink-2:#C4C7CC;--ink-3:#9AA0A6;--on-accent:#0B0C0F;
+    56→  --line:rgba(255,255,255,.10);--line-2:rgba(255,255,255,.16);
+    57→  --ov:rgba(255,255,255,.06);--ov2:rgba(255,255,255,.12);
+    58→  --page:#0A0B0E;--glass:rgba(12,13,16,.78);--pill:rgba(20,22,27,.92);
+    59→  --shadow:0 1px 2px rgba(0,0,0,.45),0 14px 34px rgba(0,0,0,.5);
+    60→  --shadow-lg:0 24px 70px rgba(0,0,0,.6);
+    61→  --slide-g1:var(--a-glow);--slide-g2:rgba(242,139,130,.05);
+    62→  --g-red:#F28B82;--g-yellow:#FDD663;--g-green:#81C995;
+    63→  --num:'Outfit','Vazirmatn',sans-serif;
+    64→}
+    65→html.light{
+    66→  --bg:#F6F8FC;--bg-tint:#EEF2F8;--surface:#FFFFFF;
+    67→  --ink:#202124;--ink-2:#3C4043;--ink-3:#5F6368;--on-accent:#FFFFFF;
+    68→  --line:rgba(0,0,0,.10);--line-2:rgba(0,0,0,.16);
+    69→  --ov:rgba(0,0,0,.04);--ov2:rgba(0,0,0,.08);
+    70→  --page:#E8ECF3;--glass:rgba(255,255,255,.85);--pill:rgba(255,255,255,.95);
+    71→  --shadow:0 1px 2px rgba(60,64,67,.18),0 14px 34px rgba(60,64,67,.14);
+    72→  --shadow-lg:0 24px 70px rgba(60,64,67,.28);
+    73→  --slide-g2:rgba(234,67,53,.04);
+    74→  --g-red:#D93025;--g-yellow:#E8A200;--g-green:#188038;
+    75→}
+    76→html.tswap *,html.tswap *::before,html.tswap *::after{transition:background-color .42s ease,color .42s ease,border-color .42s ease,box-shadow .42s ease,opacity .3s ease!important}
+    77→#stage{position:fixed;inset:0 0 64px 0;display:grid;place-items:center;overflow:hidden}
+    78→.shell{position:absolute;width:1280px;height:720px;transform:scale(var(--s,1));transform-origin:center center;visibility:hidden}
+    79→.shell.active{visibility:visible}
+    80→.slide{position:relative;width:1280px;height:720px;overflow:hidden;display:flex;flex-direction:column;padding:52px 60px;background:radial-gradient(900px 420px at 85% -10%,var(--slide-g1),transparent 60%),radial-gradient(700px 380px at 0% 110%,var(--slide-g2),transparent 60%),var(--bg);animation:slideIn .5s ease both}
+    81→@keyframes slideIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+    82→@media (prefers-reduced-motion:reduce){.slide{animation:none}}
+    83→.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+    84→.card-tint{background:var(--bg-tint);border:1px solid var(--line);border-radius:20px}
+    85→.card-soft{background:var(--a-tint);border:1px solid var(--a-tintB);border-radius:20px}
+    86→.chip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:7px 16px;font-weight:700;font-size:13.5px;background:var(--a-tint);color:var(--a-primary);border:1px solid var(--a-tintB)}
+    87→.chip-plain{background:var(--ov);color:var(--ink-2);border:1px solid var(--line)}
+    88→.dot{width:10px;height:10px;border-radius:999px;display:inline-block;background:var(--a-primary);box-shadow:0 0 10px var(--a-tintB)}
+    89→.kicker{font-size:13.5px;font-weight:700;color:var(--a-primary);letter-spacing:.02em;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+    90→h1.title{font-size:38px;font-weight:800;line-height:1.3;color:var(--ink)}
+    91→.head{flex-shrink:0;margin-bottom:26px}
+    92→.head .rule{width:64px;height:5px;border-radius:99px;background:var(--a-grad);margin-top:14px}
+    93→.body{flex:1;min-height:0;display:flex;flex-direction:column}
+    94→.foot{flex-shrink:0;margin-top:22px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--ink-3)}
+    95→.foot .n{font-family:var(--num);font-weight:600}
+    96→.grad-text{background:var(--a-grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+    97→.num{font-family:var(--num)}
+    98→
+    99→/* ── Control bar ── */
+   100→#bar{position:fixed;right:0;bottom:0;left:0;height:64px;display:flex;align-items:center;gap:14px;padding:0 22px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);z-index:40;direction:ltr}
+   101→#bar button{all:unset;cursor:pointer;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--ink-2);font-size:17px;transition:background .2s,color .2s}
+   102→#bar button:hover{background:var(--ov2);color:var(--ink)}
+   103→#bar button:disabled{opacity:.28;cursor:default}
+   104→#counter{font-family:var(--num);font-weight:600;font-size:14px;color:var(--ink-2);min-width:64px;text-align:center;direction:ltr}
+   105→#dots{display:flex;gap:7px;flex:1;justify-content:center;align-items:center;overflow-x:auto;padding:4px}
+   106→#dots::-webkit-scrollbar{display:none}
+   107→#dots .d{width:9px;height:9px;border-radius:99px;background:var(--ov2);cursor:pointer;transition:all .25s;flex-shrink:0}
+   108→#dots .d.on{background:var(--a-primary);width:26px;box-shadow:0 0 8px var(--a-tintB)}
+   109→#prog{position:absolute;top:-2px;right:0;height:2.5px;background:var(--a-grad);border-radius:99px;transition:width .35s ease;width:0}
+   110→.sep{width:1px;height:22px;background:var(--line)}
+   111→
+   112→/* ── Overview ── */
+   113→#ovWrap{position:fixed;inset:0;background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:60;display:none;overflow:auto;padding:46px 60px}
+   114→#ovWrap.open{display:block}
+   115→#ovGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;max-width:1240px;margin:0 auto}
+   116→#ovWrap h3{color:var(--ink-2);font-size:15px;margin:0 auto 18px;max-width:1240px;font-weight:700}
+   117→.ov-item{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;transition:all .2s;display:flex;gap:12px;align-items:flex-start;color:var(--ink)}
+   118→.ov-item:hover{border-color:var(--a-primary);transform:translateY(-2px);box-shadow:var(--shadow)}
+   119→.ov-item.cur{border-color:var(--a-primary);background:var(--a-tint)}
+   120→.ov-item .i{font-family:var(--num);font-weight:700;font-size:13px;color:var(--a-primary);background:var(--a-tint);border-radius:9px;padding:3px 9px;flex-shrink:0}
+   121→.ov-item .t{font-size:13.5px;font-weight:600;line-height:1.6}
+   122→
+   123→/* ── Toast ── */
+   124→#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--pill);border:1px solid var(--line);color:var(--ink);padding:10px 22px;border-radius:999px;font-size:13.5px;font-weight:600;opacity:0;transition:all .3s;z-index:80;pointer-events:none;box-shadow:var(--shadow-lg)}
+   125→#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+   126→
+   127→@media print{
+   128→  html,body{overflow:visible;background:#fff}
+   129→  #bar,#ovWrap,#toast{display:none!important}
+   130→  #stage{position:static;inset:auto}
+   131→  .shell{position:relative;visibility:visible!important;transform:none!important;page-break-after:always;break-after:page;margin:0 auto}
+   132→  @page{size:1280px 720px;margin:0}
+   133→}
+   134→`
+   135→
+   136→function accentCss(accent: DeckAccent, light: boolean): string {
+   137→  const p = ACCENTS[accent][light ? 'light' : 'dark']
+   138→  return `:root${light ? '.light' : ''}{--a-primary:${p.primary};--a-deep:${p.deep};--a-tint:${p.tint};--a-tintB:${p.tintB};--a-glow:${p.glow};--a-grad:${p.grad}}`
+   139→}
+   140→
+   141→/* ── Slide body renderers ── */
+   142→
+   143→function head(slide: { kicker?: string; title: string }, deck: DeckJSON): string {
+   144→  const kicker = slide.kicker
+   145→    ? `<div class="kicker"><span class="dot"></span>${esc(slide.kicker)}</div>`
+   146→    : ''
+   147→  return `<header class="head">${kicker}<h1 class="title">${esc(slide.title)}</h1><div class="rule"></div></header>`
+   148→}
+   149→
+   150→function foot(deck: DeckJSON, idx: number, total: number): string {
+   151→  const lang = deck.language
+   152→  const n = lang === 'fa' ? faNum(idx + 1) : String(idx + 1)
+   153→  const t = lang === 'fa' ? faNum(total) : String(total)
+   154→  return `<footer class="foot"><span>${esc(deck.title)}</span><span class="n">${n} / ${t}</span></footer>`
+   155→}
+   156→
+   157→/* ── تصویر با جایگزین امن: اگر لینک اصلی شکست، تصویر رزرو نمایش داده می‌شود ── */
+   158→function imgTag(url: string, alt: string, seed: string, style = ''): string {
+   159→  const fallback = `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/500`
+   160→  const safeAlt = esc(alt).slice(0, 120)
+   161→  return `<img src="${esc(url)}" alt="${safeAlt}" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='${fallback}'" style="object-fit:cover;width:100%;height:100%;display:block;${style}">`
+   162→}
+   163→
+   164→function renderCover(s: Extract<DeckSlide, { type: 'cover' }>, deck: DeckJSON): string {
+   165→  const meta: string[] = []
+   166→  if (s.author) meta.push(s.author)
+   167→  if (s.date) meta.push(s.date)
+   168→  /* حالت دارای تصویر: جلد دونیمه با تصویر کنار عنوان */
+   169→  if (s.image) {
+   170→    return `
+   171→  <div style="flex:1;display:grid;grid-template-columns:1.05fr .95fr;gap:44px;align-items:center;min-height:0">
+   172→    <div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:right;gap:22px;min-width:0">
+   173→      ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
+   174→      <h1 style="font-size:52px;font-weight:900;line-height:1.3">${esc(s.title)}</h1>
+   175→      <div style="width:110px;height:6px;border-radius:99px;background:var(--a-grad)"></div>
+   176→      ${s.subtitle ? `<p style="font-size:20px;color:var(--ink-2);line-height:1.9">${esc(s.subtitle)}</p>` : ''}
+   177→      ${meta.length ? `<div style="display:flex;gap:12px;margin-top:4px">${meta.map((m) => `<span class="chip chip-plain">${esc(m)}</span>`).join('')}</div>` : ''}
+   178→    </div>
+   179→    <div style="position:relative;height:74%;min-height:0;border-radius:26px;overflow:hidden;box-shadow:var(--shadow-lg)">
+   180→      ${imgTag(s.image, s.title, 'cover', 'border-radius:26px')}
+   181→      ${s.imageCaption ? `<span style="position:absolute;bottom:0;right:0;left:0;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;padding:38px 22px 16px;font-size:13px;direction:rtl;text-align:right">${esc(s.imageCaption)}</span>` : ''}
+   182→    </div>
+   183→  </div>
+   184→  ${foot(deck, 0, deck.slides.length)}`
+   185→  }
+   186→  return `
+   187→  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:26px">
+   188→    ${s.badge ? `<span class="chip"><span class="dot"></span>${esc(s.badge)}</span>` : ''}
+   189→    <h1 style="font-size:64px;font-weight:900;line-height:1.25;max-width:1000px">${esc(s.title)}</h1>
+   190→    <div style="width:110px;height:6px;border-radius:99px;background:var(--a-grad)"></div>
+   191→    ${s.subtitle ? `<p style="font-size:22px;color:var(--ink-2);line-height:1.9;max-width:860px">${esc(s.subtitle)}</p>` : ''}
+   192→    ${meta.length ? `<div style="display:flex;gap:12px;margin-top:6px">${meta.map((m) => `<span class="chip chip-plain">${esc(m)}</span>`).join('')}</div>` : ''}
+   193→  </div>
+   194→  ${foot(deck, 0, deck.slides.length)}`
+   195→}
+   196→
+   197→function renderAgenda(s: Extract<DeckSlide, { type: 'agenda' }>, deck: DeckJSON, idx: number): string {
+   198→  const lang = deck.language
+   199→  const two = s.items.length > 4
+   200→  const items = s.items
+   201→    .map((it, i) => {
+   202→      const n = lang === 'fa' ? faNum(i + 1) : String(i + 1)
+   203→      return `<div class="card" style="display:flex;align-items:center;gap:18px;padding:20px 24px">
+   204→        <span class="num" style="width:44px;height:44px;border-radius:14px;background:var(--a-tint);border:1px solid var(--a-tintB);color:var(--a-primary);font-weight:800;font-size:19px;display:grid;place-items:center;flex-shrink:0">${n}</span>
+   205→        <span style="font-size:17.5px;font-weight:600;line-height:1.7">${esc(it)}</span>
+   206→      </div>`
+   207→    })
+   208→    .join('')
+   209→  return `${head(s, deck)}
+   210→  <div class="body"><section style="flex:1;display:grid;grid-template-columns:${two ? '1fr 1fr' : '1fr'};gap:16px;align-content:${two ? 'stretch' : 'start'}">${items}</section></div>
+   211→  ${foot(deck, idx, deck.slides.length)}`
+   212→}
+   213→
+   214→function renderBullets(s: Extract<DeckSlide, { type: 'bullets' }>, deck: DeckJSON, idx: number): string {
+   215→  const rows = s.items
+   216→    .map((it, i) =>
+   217→      it.title
+   218→        ? `<div class="card" style="display:flex;gap:16px;padding:18px 22px;align-items:flex-start">
+   219→            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.title, 'b' + i)}</span>` : ''}
+   220→            <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+   221→              <span style="font-size:17px;font-weight:700">${esc(it.title)}</span>
+   222→              <span style="font-size:15px;color:var(--ink-2);line-height:1.85">${esc(it.text)}</span>
+   223→            </div>
+   224→          </div>`
+   225→        : `<div style="display:flex;gap:16px;padding:14px 22px;align-items:flex-start" class="card-tint">
+   226→            ${it.image ? `<span style="width:120px;height:86px;border-radius:14px;overflow:hidden;flex-shrink:0">${imgTag(it.image, it.text.slice(0, 60), 'b' + i)}</span>` : ''}
+   227→            <span style="font-size:16.5px;line-height:1.9">${esc(it.text)}</span>
+   228→          </div>`
+   229→    )
+   230→    .join('')
+   231→  return `${head(s, deck)}
+   232→  <div class="body"><section style="flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center">${rows}</section></div>
+   233→  ${foot(deck, idx, deck.slides.length)}`
+   234→}
+   235→
+   236→function renderTwoColumn(s: Extract<DeckSlide, { type: 'two-column' }>, deck: DeckJSON, idx: number): string {
+   237→  const cols = s.columns
+   238→    .map(
+   239→      (c, ci) => `<section class="${ci % 2 === 0 ? 'card' : 'card-soft'}" style="padding:26px 28px;display:flex;flex-direction:column;gap:14px;min-height:0">
+   240→        <h2 style="font-size:20px;font-weight:800;color:${ci % 2 === 0 ? 'var(--a-primary)' : 'var(--ink)'};display:flex;align-items:center;gap:10px">
+   241→          <span class="dot"></span>${esc(c.heading)}
+   242→        </h2>
+   243→        <div style="display:flex;flex-direction:column;gap:11px">
+   244→          ${c.items
+   245→            .map(
+   246→              (it) => `<div style="display:flex;gap:10px;align-items:flex-start">
+   247→                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="margin-top:5px;flex-shrink:0"><path d="M20 6L9 17l-5-5" stroke="var(--a-primary)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   248→                <span style="font-size:15px;line-height:1.8;color:var(--ink-2)">${esc(it)}</span>
+   249→              </div>`
+   250→            )
+   251→            .join('')}
+   252→        </div>
+   253→      </section>`
+   254→    )
+   255→    .join('')
+   256→  return `${head(s, deck)}
+   257→  <div class="body"><section style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:20px;min-height:0">${cols}</section></div>
+   258→  ${foot(deck, idx, deck.slides.length)}`
+   259→}
+   260→
+   261→function renderStats(s: Extract<DeckSlide, { type: 'stats' }>, deck: DeckJSON, idx: number): string {
+   262→  const lang = deck.language
+   263→  const fix = (v: string) => (lang === 'fa' ? v.replace(/\d/g, (d) => FA_DIGITS[Number(d)]) : v)
+   264→  const cards = s.stats
+   265→    .map(
+   266→      (st) => `<div class="card" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:30px 18px;text-align:center">
+   267→        <span class="num grad-text" style="font-size:52px;font-weight:800;line-height:1.1">${esc(fix(st.value))}</span>
+   268→        <span style="font-size:15.5px;font-weight:700">${esc(st.label)}</span>
+   269→        ${st.hint ? `<span style="font-size:12.5px;color:var(--ink-3);line-height:1.7">${esc(st.hint)}</span>` : ''}
+   270→      </div>`
+   271→    )
+   272→    .join('')
+   273→  return `${head(s, deck)}
+   274→  <div class="body">
+   275→    <section style="flex:1;display:flex;gap:18px;align-items:stretch;min-height:0">${cards}</section>
+   276→    ${s.footnote ? `<div class="card-soft" style="margin-top:18px;padding:14px 22px;display:flex;align-items:center;gap:12px;flex-shrink:0"><span class="dot" style="flex-shrink:0"></span><span style="font-size:14px;font-weight:600;line-height:1.7">${esc(s.footnote)}</span></div>` : ''}
+   277→  </div>
+   278→  ${foot(deck, idx, deck.slides.length)}`
+   279→}
+   280→
+   281→function renderQuote(s: Extract<DeckSlide, { type: 'quote' }>, deck: DeckJSON, idx: number): string {
+   282→  return `
+   283→  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:30px;padding:0 70px">
+   284→    <span class="grad-text" style="font-size:90px;font-weight:900;line-height:.6;font-family:Georgia,serif">&#187;</span>
+   285→    <p style="font-size:30px;font-weight:700;line-height:2;max-width:980px">${esc(s.quote)}</p>
+   286→    <div style="width:80px;height:5px;border-radius:99px;background:var(--a-grad)"></div>
+   287→    ${s.author ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:center"><span style="font-size:17px;font-weight:800">${esc(s.author)}</span>${s.role ? `<span style="font-size:13.5px;color:var(--ink-3)">${esc(s.role)}</span>` : ''}</div>` : ''}
+   288→  </div>
+   289→  ${foot(deck, idx, deck.slides.length)}`
+   290→}
+   291→
+   292→function renderTimeline(s: Extract<DeckSlide, { type: 'timeline' }>, deck: DeckJSON, idx: number): string {
+   293→  const lang = deck.language
+   294→  const steps = s.steps
+   295→    .map((st, i) => {
+   296→      const n = lang === 'fa' ? faNum(st.label) : st.label
+   297→      return `<div style="flex:1;display:flex;flex-direction:column;gap:14px;min-width:0">
+   298→        <div style="display:flex;align-items:center;gap:10px">
+   299→          <span class="num" style="width:42px;height:42px;border-radius:999px;background:var(--a-grad);color:var(--on-accent);font-weight:800;font-size:16px;display:grid;place-items:center;flex-shrink:0">${esc(n)}</span>
+   300→          ${i < s.steps.length - 1 ? `<div style="flex:1;height:2.5px;background:var(--a-tintB);border-radius:99px"></div>` : ''}
+   301→        </div>
+   302→        <div class="card" style="padding:18px 20px;display:flex;flex-direction:column;gap:6px;flex:1">
+   303→          <span style="font-size:16px;font-weight:800">${esc(st.title)}</span>
+   304→          <span style="font-size:13.5px;color:var(--ink-2);line-height:1.8">${esc(st.text)}</span>
+   305→        </div>
+   306→      </div>`
+   307→    })
+   308→    .join('')
+   309→  return `${head(s, deck)}
+   310→  <div class="body"><section style="flex:1;display:flex;gap:16px;align-items:stretch;padding-top:8px">${steps}</section></div>
+   311→  ${foot(deck, idx, deck.slides.length)}`
+   312→}
+   313→
+   314→function renderConclusion(s: Extract<DeckSlide, { type: 'conclusion' }>, deck: DeckJSON, idx: number): string {
+   315→  const points = s.points
+   316→    .map(
+   317→      (p) => `<div class="card" style="display:flex;gap:14px;padding:16px 22px;align-items:center">
+   318→        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0"><circle cx="12" cy="12" r="11" fill="var(--a-tint)"/><path d="M8 12.5l2.5 2.5L16 9.5" stroke="var(--a-primary)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+   319→        <span style="font-size:16px;font-weight:600;line-height:1.8">${esc(p)}</span>
+   320→      </div>`
+   321→    )
+   322→    .join('')
+   323→  return `${head(s, deck)}
+   324→  <div class="body" style="justify-content:center;gap:22px">
+   325→    <section style="display:flex;flex-direction:column;gap:12px">${points}</section>
+   326→    ${s.cta ? `<div style="display:flex;justify-content:center"><span style="background:var(--a-grad);color:var(--on-accent);border-radius:999px;padding:13px 34px;font-size:15.5px;font-weight:800;box-shadow:var(--shadow)">${esc(s.cta)}</span></div>` : ''}
+   327→  </div>
+   328→  ${foot(deck, idx, deck.slides.length)}`
+   329→}
+   330→
+   331→function renderImage(s: Extract<DeckSlide, { type: 'image' }>, deck: DeckJSON, idx: number): string {
+   332→  return `
+   333→  <div style="flex:1;display:grid;grid-template-columns:1.15fr .85fr;gap:0;min-height:0;border-radius:22px;overflow:hidden;position:relative">
+   334→    <div style="position:relative;min-height:0">${imgTag(s.image, s.title, 'slide')}</div>
+   335→    <div style="display:flex;flex-direction:column;justify-content:center;gap:16px;padding:40px 42px;background:linear-gradient(160deg,var(--a-tint),transparent 70%);border-right:1px solid var(--line);min-width:0">
+   336→      ${s.kicker ? `<div class="kicker"><span class="dot"></span>${esc(s.kicker)}</div>` : ''}
+   337→      <h1 style="font-size:30px;font-weight:900;line-height:1.5">${esc(s.title)}</h1>
+   338→      ${s.text ? `<p style="font-size:16.5px;color:var(--ink-2);line-height:2">${esc(s.text)}</p>` : ''}
+   339→      ${s.caption ? `<span style="font-size:12.5px;color:var(--ink-3);display:flex;align-items:center;gap:8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="3" stroke="var(--ink-3)" stroke-width="2"/><circle cx="9" cy="10" r="2" fill="var(--ink-3)"/><path d="M5 18l4.5-5 3.5 4 3-3 3 4" stroke="var(--ink-3)" stroke-width="2" stroke-linejoin="round"/></svg>${esc(s.caption)}</span>` : ''}
+   340→    </div>
+   341→  </div>
+   342→  ${foot(deck, idx, deck.slides.length)}`
+   343→}
+   344→
+   345→function renderSlide(s: DeckSlide, deck: DeckJSON, idx: number): string {
+   346→  switch (s.type) {
+   347→    case 'cover': return renderCover(s, deck)
+   348→    case 'agenda': return renderAgenda(s, deck, idx)
+   349→    case 'bullets': return renderBullets(s, deck, idx)
+   350→    case 'two-column': return renderTwoColumn(s, deck, idx)
+   351→    case 'stats': return renderStats(s, deck, idx)
+   352→    case 'quote': return renderQuote(s, deck, idx)
+   353→    case 'image': return renderImage(s, deck, idx)
+   354→    case 'timeline': return renderTimeline(s, deck, idx)
+   355→    case 'conclusion': return renderConclusion(s, deck, idx)
+   356→    default: return renderBullets({ type: 'bullets', title: String((s as { title?: string }).title ?? deck.title), items: [] }, deck, idx)
+   357→  }
+   358→}
+   359→
+   360→/* ── Player JS (navigation, theme, overview, fullscreen, swipe) ── */
+   361→function playerScript(total: number, lang: DeckLanguage): string {
+   362→  const fa = lang === 'fa'
+   363→  const labels = fa
+   364→    ? { overview: 'نمای کلی (کلید O)', theme: 'تغییر تم روشن/تیره', fs: 'تمام‌صفحه', next: 'اسلاید بعدی', prev: 'اسلاید قبلی', end: 'پایان ارائه', start: 'اسلاید اول' }
+   365→    : { overview: 'Overview (key O)', theme: 'Toggle light/dark theme', fs: 'Fullscreen', next: 'Next slide', prev: 'Previous slide', end: 'End of deck', start: 'First slide' }
+   366→  return `
+   367→(function(){
+   368→  var N=${total},cur=0;
+   369→  var FA='۰۱۲۳۴۵۶۷۸۹';
+   370→  function fa(n){return String(n).replace(/\\d/g,function(d){return FA[d]})}
+   371→  var shells=[].slice.call(document.querySelectorAll('.shell'));
+   372→  var dotsW=document.getElementById('dots'),counter=document.getElementById('counter'),prog=document.getElementById('prog');
+   373→  var bPrev=document.getElementById('bPrev'),bNext=document.getElementById('bNext');
+   374→  var ovWrap=document.getElementById('ovWrap'),stage=document.getElementById('stage');
+   375→  function fmt(n){return ${fa ? 'fa(n)' : 'String(n)'}} /* eslint-disable-line */
+   376→  function fmtN(n){${fa ? 'return fa(n)' : 'return String(n)'}}
+   377→  dotsW.innerHTML='';
+   378→  for(var i=0;i<N;i++){(function(i){var d=document.createElement('span');d.className='d';d.title=fmtN(i+1);d.onclick=function(){go(i)};dotsW.appendChild(d)})(i)}
+   379→  var dots=[].slice.call(dotsW.children);
+   380→  function go(i){
+   381→    if(i<0)i=0;if(i>N-1)i=N-1;
+   382→    if(i===cur&&shells[cur].className.indexOf('active')>-1){}
+   383→    shells.forEach(function(s,j){s.classList.toggle('active',j===i)});
+   384→    dots.forEach(function(d,j){d.classList.toggle('on',j===i)});
+   385→    counter.textContent=fmtN(i+1)+' / '+fmtN(N);
+   386→    prog.style.width=((i+1)/N*100)+'%';
+   387→    bPrev.disabled=i===0;bNext.disabled=i===N-1;
+   388→    cur=i;
+   389→  }
+   390→  function fit(){
+   391→    var vw=window.innerWidth,vh=window.innerHeight-64;
+   392→    var s=Math.min(vw/1280,vh/720);
+   393→    document.documentElement.style.setProperty('--s',s);
+   394→  }
+   395→  window.addEventListener('resize',fit);fit();
+   396→  bPrev.onclick=function(){go(cur-1)};
+   397→  bNext.onclick=function(){go(cur+1)};
+   398→  document.getElementById('bTheme').onclick=function(){
+   399→    document.documentElement.classList.add('tswap');
+   400→    var el=document.documentElement;el.classList.toggle('light');
+   401→    try{localStorage.setItem('zslide-theme',el.classList.contains('light')?'light':'dark')}catch(e){}
+   402→    setTimeout(function(){el.classList.remove('tswap')},480);
+   403→  };
+   404→  document.getElementById('bFs').onclick=function(){
+   405→    if(document.fullscreenElement){document.exitFullscreen()}
+   406→    else{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}
+   407→  };
+   408→  var ov=document.getElementById('ovWrap');
+   409→  function buildOv(){
+   410→    var g=document.getElementById('ovGrid');g.innerHTML='';
+   411→    var h=document.createElement('h3');h.textContent='${esc(labels.overview)}';g.parentNode.insertBefore(h,g);
+   412→    shells.forEach(function(sh,i){
+   413→      var card=document.createElement('div');card.className='ov-item'+(i===cur?' cur':'');
+   414→      var t=sh.querySelector('[data-ovtitle]');
+   415→      var title=t?t.getAttribute('data-ovtitle'):(''+(i+1));
+   416→      card.innerHTML='<span class="i">'+fmtN(i+1)+'</span><span class="t"></span>';
+   417→      card.querySelector('.t').textContent=title;
+   418→      card.onclick=function(){go(i);ov.classList.remove('open')};
+   419→      g.appendChild(card);
+   420→    });
+   421→  }
+   422→  function toggleOv(){if(ov.classList.contains('open')){ov.classList.remove('open')}else{buildOv();ov.classList.add('open')}}
+   423→  document.getElementById('bOv').onclick=toggleOv;
+   424→  ov.addEventListener('click',function(e){if(e.target===ov)ov.classList.remove('open')});
+   425→  document.addEventListener('keydown',function(e){
+   426→    if(e.key==='ArrowLeft'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1)}
+   427→    else if(e.key==='ArrowRight'||e.key==='PageUp'){e.preventDefault();go(cur-1)}
+   428→    else if(e.key==='ArrowDown'){e.preventDefault();go(cur+1)}
+   429→    else if(e.key==='ArrowUp'){e.preventDefault();go(cur-1)}
+   430→    else if(e.key==='Home'){e.preventDefault();go(0)}
+   431→    else if(e.key==='End'){e.preventDefault();go(N-1)}
+   432→    else if(e.key==='o'||e.key==='O'){toggleOv()}
+   433→    else if(e.key==='Escape'){ov.classList.remove('open')}
+   434→    else if(e.key==='f'||e.key==='F'){document.getElementById('bFs').click()}
+   435→  });
+   436→  var tx=null;
+   437→  stage.addEventListener('touchstart',function(e){tx=e.touches[0].clientX},{passive:true});
+   438→  stage.addEventListener('touchend',function(e){
+   439→    if(tx===null)return;var dx=e.changedTouches[0].clientX-tx;
+   440→    if(Math.abs(dx)>50){ if(dx>0)go(cur+1); else go(cur-1); }
+   441→    tx=null;
+   442→  },{passive:true});
+   443→  try{if(localStorage.getItem('zslide-theme')==='light')document.documentElement.classList.add('light')}catch(e){}
+   444→  go(0);
+   445→})();`
+   446→}
+   447→
+   448→/* ── Main entry ── */
+   449→export function generateDeckHTML(
+   450→  deck: DeckJSON,
+   451→  opts: { accent?: DeckAccent } = {}
+   452→): string {
+   453→  const accent: DeckAccent = opts.accent ?? 'blue'
+   454→  const lang = deck.language ?? 'fa'
+   455→  const dir = lang === 'fa' ? 'rtl' : 'ltr'
+   456→  const total = deck.slides.length
+   457→
+   458→  const shells = deck.slides
+   459→    .map((s, i) => {
+   460→      const ovTitle =
+   461→        s.type === 'quote' ? (s.author ?? s.quote.slice(0, 60)) : ((s as { title?: string }).title ?? deck.title)
+   462→      return `<div class="shell" data-i="${i}"><div class="slide" data-ovtitle="${esc(ovTitle)}">${renderSlide(s, deck, i)}</div></div>`
+   463→    })
+   464→    .join('\n')
+   465→
+   466→  return `<!DOCTYPE html>
+   467→<html dir="${dir}" lang="${lang}">
+   468→<head>
+   469→<meta charset="UTF-8">
+   470→<meta name="viewport" content="width=device-width, initial-scale=1.0">
+   471→<title>${esc(deck.title)}</title>
+   472→<meta name="generator" content="آرشام پوینت (Arsham Point) — ساخت پاورپوینت فارسی با هوش مصنوعی">
+   473→<link rel="preconnect" href="https://fonts.googleapis.com">
+   474→<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   475→<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+   476→<style>
+   477→${BASE_CSS}
+   478→${accentCss(accent, false)}
+   479→${accentCss(accent, true)}
+   480→</style>
+   481→</head>
+   482→<body>
+   483→<main id="stage" aria-label="${esc(deck.title)}">
+   484→${shells}
+   485→</main>
+   486→<nav id="bar" aria-label="کنترل ارائه">
+   487→  <div id="prog"></div>
+   488→  <button id="bPrev" title="${esc(labelsSafe(lang).prev)}" aria-label="${esc(labelsSafe(lang).prev)}">&#8250;</button>
+   489→  <div id="counter" aria-live="polite">1 / ${lang === 'fa' ? faNum(total) : total}</div>
+   490→  <button id="bNext" title="${esc(labelsSafe(lang).next)}" aria-label="${esc(labelsSafe(lang).next)}">&#8249;</button>
+   491→  <div class="sep"></div>
+   492→  <div id="dots" role="tablist" aria-label="اسلایدها"></div>
+   493→  <div class="sep"></div>
+   494→  <button id="bOv" title="${esc(labelsSafe(lang).overview)}" aria-label="${esc(labelsSafe(lang).overview)}">&#8862;</button>
+   495→  <button id="bTheme" title="${esc(labelsSafe(lang).theme)}" aria-label="${esc(labelsSafe(lang).theme)}">&#9681;</button>
+   496→  <button id="bFs" title="${esc(labelsSafe(lang).fs)}" aria-label="${esc(labelsSafe(lang).fs)}">&#9974;</button>
+   497→</nav>
+   498→<div id="ovWrap"><div id="ovGrid"></div></div>
+   499→<div id="toast" role="status"></div>
+   500→<script>${playerScript(total, lang)}</script>
+   501→</body>
+   502→</html>`
+   503→}
+   504→
+   505→function labelsSafe(lang: DeckLanguage) {
+   506→  return lang === 'fa'
+   507→    ? { overview: 'نمای کلی (کلید O)', theme: 'تغییر تم روشن/تیره', fs: 'تمام‌صفحه', next: 'اسلاید بعدی', prev: 'اسلاید قبلی' }
+   508→    : { overview: 'Overview (O)', theme: 'Toggle theme', fs: 'Fullscreen', next: 'Next', prev: 'Previous' }
+   509→}
+   510→
