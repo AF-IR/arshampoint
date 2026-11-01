@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Presentation, Loader2, Sparkles, ShieldCheck, Globe, Download, Database, MailCheck, Wand2, Home } from 'lucide-react'
 import { authLogin, authRegister, type SessionUser } from '@/lib/client-auth'
 import { BRAND, TAGLINE, DEMO_ACCOUNT } from '@/components/arsham/content'
+import { BrandMark, DomainChip } from '@/components/arsham/brand-logo'
 import { navigate } from '@/hooks/use-hash-route'
 
 interface Props {
@@ -71,12 +72,13 @@ export function AuthView({ onAuthed, authMode }: Props) {
         <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-[#8AB4F8]/10 blur-3xl" />
         <div className="absolute bottom-0 right-0 w-80 h-80 rounded-full bg-[#4285F4]/10 blur-3xl" />
         <div className="relative flex items-center gap-3">
-          <span className="grid place-items-center w-14 h-14 rounded-2xl bg-gradient-to-bl from-[#8AB4F8] to-[#4285F4] text-[#0B0C0F] shadow-lg shadow-[#4285F4]/20">
-            <Presentation className="w-7 h-7" />
-          </span>
+          <BrandMark size={56} />
           <div>
-            <h1 className="text-3xl font-black tracking-tight">{BRAND}</h1>
-            <p className="text-sm text-[#9AA0A6] mt-1">{TAGLINE} — مدل GLM زد.دات‌ای</p>
+            <h1 className="flex items-center gap-2 text-3xl font-black tracking-tight">
+              {BRAND}
+              <DomainChip className="scale-110" />
+            </h1>
+            <p className="text-sm text-[#9AA0A6] mt-1">{TAGLINE}</p>
           </div>
         </div>
         <ul className="relative grid gap-4 max-w-md w-full text-sm">

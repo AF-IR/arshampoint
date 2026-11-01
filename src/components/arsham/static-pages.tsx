@@ -3,8 +3,8 @@
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion'
-import { Mail, MapPin, Clock, ShieldCheck, Server, Eye, Lock } from 'lucide-react'
-import { BRAND, BRAND_EN, FAQS, SUPPORT_EMAIL } from './content'
+import { Mail, MapPin, Clock, Phone, ShieldCheck, Server, Eye, Lock } from 'lucide-react'
+import { BRAND, BRAND_EN, FAQS, SUPPORT_EMAIL, CREATOR } from './content'
 
 function PageHead({ kicker, title, lead }: { kicker: string; title: string; lead: string }) {
   return (
@@ -36,8 +36,8 @@ export function AboutPage() {
       />
       <Prose>
         <p>
-          {BRAND} ({BRAND_EN}) یک وب‌اپلیکیشن فارسی برای تولید خودکار پرزنتیشن است که با هوش مصنوعی مدل GLM
-          سرویس Z.ai کار می‌کند. کاربر فقط موضوع، مخاطب هدف، لحن و تعداد اسلایدها را مشخص می‌کند و سیستم
+          {BRAND} ({BRAND_EN}) یک وب‌اپلیکیشن فارسی برای ساخت پاورپوینت با هوش مصنوعی است که روی
+          موتور اختصاصی آرشام پوینت کار می‌کند. کاربر فقط موضوع، مخاطب هدف، لحن و تعداد اسلایدها را مشخص می‌کند و سیستم
           در چند ده ثانیه یک ارائه کامل شامل اسلاید جلد، دستور جلسه، نکات کلیدی، آمار، نقل‌قول، خط زمانی
           و اسلاید جمع‌بندی تحویل می‌دهد. نتیجه، یک فایل HTML مستقل است که روی هر مرورگری اجرا می‌شود و
           مالکیت آن کاملاً در اختیار کاربر است.
@@ -54,8 +54,8 @@ export function AboutPage() {
         <H2>زیرساخت فنی</H2>
         <p>
           محصول روی Next.js و React ساخته شده؛ رابط کاربری با Tailwind CSS و کامپوننت‌های shadcn/ui
-          پیاده شده و برای همه صفحات طراحی واکنش‌گرا در نظر گرفته شده است. تولید محتوا با مدل‌های زبانی
-          GLM (سرویس Z.ai) انجام می‌شود و ساختار هر ارائه به‌صورت JSON ساخت‌یافته ذخیره می‌شود تا خروجی
+          پیاده شده و برای همه صفحات طراحی واکنش‌گرا در نظر گرفته شده است. تولید محتوا با موتور
+          هوش مصنوعی آرشام پوینت (مبتنی بر مدل‌های زبانی GLM) انجام می‌شود و ساختار هر ارائه به‌صورت JSON ساخت‌یافته ذخیره می‌شود تا خروجی
           همیشه قابل بازتولید باشد. احراز هویت کاربران و ذخیره‌سازی داده‌ها روی PostgreSQL سرویس Supabase
           است و استقرار نسخه اصلی روی Vercel پشتیبانی می‌شود. خروجی نهایی، HTML تک‌فایلی با فونت وزیرمتن،
           دو تم روشن/تاریک و کنترل کیبورد است.
@@ -82,9 +82,9 @@ export function FeaturesPage() {
         lead="بررسی دقیق‌تر قابلیت‌هایی که آرشام پوینت را به یک ابزار روزمره برای ارائه‌های فارسی تبدیل می‌کند."
       />
       <Prose>
-        <H2>هشت چیدمان حرفه‌ای اسلاید</H2>
+        <H2>یازده چیدمان حرفه‌ای اسلاید</H2>
         <p>
-          موتور رندر آرشام پوینت هشت نوع اسلاید را پوشش می‌دهد: جلد (Cover) با برچسب و عنوان بزرگ،
+          موتور رندر آرشام پوینت یازده نوع اسلاید را پوشش می‌دهد: جلد (Cover) با برچسب و عنوان بزرگ،
           دستور جلسه (Agenda)، فهرست نکته‌ای با توضیح دوستونه (Bullets)، مقایسه دو ستونی، صفحه آمار با
           کارت‌های عددی و پانویس، نقل‌قول تاثیرگذار، خط زمانی مراحل، و اسلاید جمع‌بندی با دعوت به اقدام.
           هوش مصنوعی بر اساس ماهیت موضوع، ترکیب مناسبی از این چیدمان‌ها را انتخاب می‌کند تا ارائه یکنواخت
@@ -92,8 +92,10 @@ export function FeaturesPage() {
         </p>
         <H2>کنترل کامل روی ظاهر</H2>
         <p>
-          هر ارائه با یکی از چهار پالت رنگی (آبی گوگلی، سبز، نارنجی، بنفش) تولید می‌شود و داخل فایل،
-          کلید تغییر تم روشن/تاریک برای مخاطب وجود دارد. فونت فارسی وزیرمتن از CDN بارگذاری می‌شود و
+          هر ارائه با یکی از ۱۲ قالب طراحی (از مدرن و مینیمال تا شب نئون، اکادمیک و خط فارسی) تولید می‌شود؛
+          قالب به‌صورت هوشمند و متناسب با موضوع انتخاب می‌شود تا دو ارائه شبیه هم نباشند و در پلن حرفه‌ای
+          می‌توانید قالب و نوع اسلایدها را دستی انتخاب کنید. رنگ غالب هم جداگانه از طیف ۱۲ رنگی تعیین می‌شود و
+          داخل فایل کلید تغییر تم روشن/تاریک برای مخاطب وجود دارد. فونت فارسی وزیرمتن از CDN بارگذاری می‌شود و
           برای زبان انگلیسی، چیدمان به‌صورت خودکار چپ‌چین می‌شود. نسبت بوم ۱۶:۹ است و روی ویدیوپروژکتور
           یا نمایشگرهای معمول بدون بریدگی نمایش داده می‌شود.
         </p>
@@ -246,12 +248,23 @@ export function ContactPage() {
         lead="پشتیبانی، پیشنهاد قابلیت جدید یا همکاری — همه از یک مسیر."
       />
       <Prose>
-        <div className="grid sm:grid-cols-3 gap-4 max-w-2xl mx-auto pb-2">
-          <div className="rounded-2xl border border-white/10 bg-[#12141A] p-5 text-center">
+        <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto pb-2">
+          <a
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="rounded-2xl border border-white/10 bg-[#12141A] p-5 text-center hover:border-[#8AB4F8]/40 transition-colors"
+          >
             <Mail className="w-6 h-6 mx-auto text-[#8AB4F8] mb-3" />
             <p className="font-bold text-sm mb-1">ایمیل</p>
             <p className="text-xs text-[#9AA0A6]" dir="ltr">{SUPPORT_EMAIL}</p>
-          </div>
+          </a>
+          <a
+            href={CREATOR.phoneHref}
+            className="rounded-2xl border border-white/10 bg-[#12141A] p-5 text-center hover:border-[#8AB4F8]/40 transition-colors"
+          >
+            <Phone className="w-6 h-6 mx-auto text-[#8AB4F8] mb-3" />
+            <p className="font-bold text-sm mb-1">تلفن تماس</p>
+            <p className="text-xs text-[#9AA0A6]" dir="ltr">{CREATOR.phoneDisplay}</p>
+          </a>
           <div className="rounded-2xl border border-white/10 bg-[#12141A] p-5 text-center">
             <Clock className="w-6 h-6 mx-auto text-[#8AB4F8] mb-3" />
             <p className="font-bold text-sm mb-1">زمان پاسخ</p>
@@ -263,6 +276,9 @@ export function ContactPage() {
             <p className="text-xs text-[#9AA0A6] leading-6">تیم کاملاً ریموت — تهران، ایران</p>
           </div>
         </div>
+        <p className="text-center text-xs text-[#9AA0A6] -mt-3">
+          پیام‌ها مستقیماً به <span className="font-bold text-[#E8EAED]">{CREATOR.name}</span>، سازنده محصول، می‌رسد.
+        </p>
         <H2>پیش از ایمیل زدن</H2>
         <p>
           اگر مشکل فنی دارید (مثلاً خطا هنگام تولید ارائه یا ورود)، لطفاً متن دقیق پیام خطا، مرورگر و
