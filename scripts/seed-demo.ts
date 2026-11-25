@@ -123,3 +123,6 @@ main()
     process.exitCode = 1
   })
   .finally(() => db.$disconnect())
+
+/* این فایل را ماژول می‌کند تا با سایر اسکریپت‌های بدون import تداخل اسکوپ سراسری نگیرد */
+export {}

@@ -29,11 +29,32 @@ export function getAppMode(): AppMode {
   return supabaseConfigured() ? 'supabase' : 'local'
 }
 
-/* AI provider: if a real Z.ai API key is configured (Vercel production),
- * call the OpenAI-compatible Z.ai endpoint; otherwise use the bundled
+/* ── استخر کلیدهای سرویس هوش مصنوعی ──
+ * ZAI_API_KEY می‌تواند یک کلید باشد یا چند کلید که با پرانتز از هم جدا
+ * شده‌اند — تیم‌های همزمان (چند نفر روی یک استقرار) را پوشش می‌دهد:
+ *   ZAI_API_KEY="(کلید اول)(کلید دوم)(کلید سوم)"
+ * جداکننده‌های ویرگول / خط جدید / خط عمودی هم پذیرفته می‌شود.
+ * هر فراخوانی از یک کلیدِ «رندوم» شروع می‌کند و اگر کلیدی خطای سهمیه یا
+ * محدودیت نرخ داد، کلید بعدی امتحان می‌شود (در deck-ai.ts). */
+export function aiApiKeys(): string[] {
+  const raw = (process.env.ZAI_API_KEY ?? '').trim()
+  if (!raw) return []
+  let keys: string[]
+  if (raw.includes('(')) {
+    keys = [...raw.matchAll(/\(([^)]+)\)/g)].map((m) => m[1].trim())
+    if (!keys.length) keys = raw.split(/[\s,|]+/).map((k) => k.replace(/[()]/g, '').trim())
+  } else {
+    keys = raw.split(/[,|\n]/)
+  }
+  const cleaned = keys.map((k) => k.trim()).filter((k) => k.length >= 16)
+  return [...new Set(cleaned)]
+}
+
+/* AI provider: if at least one real API key is configured (Vercel production),
+ * call the OpenAI-compatible HTTP endpoint; otherwise use the bundled
  * z-ai-web-dev-sdk (zero-config, sandbox/dev environment). */
 export function aiMode(): AiMode {
-  return process.env.ZAI_API_KEY ? 'http' : 'sdk'
+  return aiApiKeys().length > 0 ? 'http' : 'sdk'
 }
 
 export const ZAI_HTTP_BASE =
@@ -52,11 +73,12 @@ export function getStatus(): StatusInfo {
   const mode = getAppMode()
   const ai = aiMode()
   const ready = mode === 'supabase' || ai === 'sdk'
+  const keyCount = aiApiKeys().length
   const hint =
     mode === 'supabase'
-      ? 'حالت پروداکشن: احراز هویت و دیتابیس از طریق Supabase فعال است.'
+      ? `حالت پروداکشن: احراز هویت و دیتابیس از طریق Supabase فعال است.${keyCount > 1 ? ` استخر ${keyCount} کلیدی موتور هوش مصنوعی هم فعال است.` : ''}`
       : ai === 'sdk'
         ? 'حالت دموی محلی: برای نسخه اصلی، متغیرهای Supabase را در تنظیمات محیط تنظیم کنید.'
-        : 'پیکربندی ناقص است: متغیرهای Supabase یا ZAI_API_KEY لازم است.'
+        : 'پیکربندی ناقص است: متغیرهای Supabase یا کلید سرویس هوش مصنوعی لازم است.'
   return { mode, ai, aiModel: ZAI_HTTP_MODEL, ready, hint }
 }

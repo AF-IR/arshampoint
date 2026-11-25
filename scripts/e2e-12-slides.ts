@@ -1,38 +1,29 @@
 /**
- * E2E: ثبت‌نام + ساخت ارائه ۱۲ اسلایدی با «تهیه‌شده توسط» + بررسی تنوع چیدمان
- * Run: npx tsx scripts/e2e-12-slides.ts
+ * E2E: ساخت ارائه ۱۲ اسلایدی با «تهیه‌شده توسط» + بررسی تنوع چیدمان.
+ * ارائه بالای ۱۰ اسلاید ویژه پلن حرفه‌ای است — با حساب پرو تست وارد می‌شود.
+ * Run: E2E_BASE=http://localhost:3100 npx tsx scripts/e2e-12-slides.ts
  */
-const BASE = 'http://localhost:3100'
+const BASE = process.env.E2E_BASE || 'http://localhost:3100'
 
 async function main() {
-  const stamp = Date.now()
-  const email = `e2e12-${stamp}@apoint.ir`
-  const password = 'Test!1234'
-
-  // 1) register + cookie
-  const reg = await fetch(`${BASE}/api/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'آرشام تست', email, password }),
-  })
-  const cookie = (reg.headers.get('set-cookie') ?? '').split(';')[0]
-  const regBody = await reg.json().catch(() => ({}))
-  console.log('register:', reg.status, regBody?.user?.email ?? JSON.stringify(regBody).slice(0, 120))
-  if (!reg.ok && regBody?.error && !String(regBody.error).includes('قبلا')) process.exit(1)
-
-  // login (in case user existed)
+  // 1) login as the pro test account (12-slide deck needs an active subscription)
   const login = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
-    body: JSON.stringify({ email, password }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'final-e2e@apoint.ir', password: 'final123456' }),
   })
-  const cookie2 = (login.headers.get('set-cookie') ?? '').split(';')[0] || cookie
+  const cookie = (login.headers.get('set-cookie') ?? '').split(';')[0]
+  console.log('login pro:', login.status)
+  if (!login.ok) {
+    console.log(JSON.stringify(await login.json().catch(() => ({}))).slice(0, 200))
+    process.exit(1)
+  }
 
   // 2) generate 12-slide deck with authors (offline mode → offline engine + AI content)
   const t0 = Date.now()
   const gen = await fetch(`${BASE}/api/presentations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie2 },
+    headers: { 'Content-Type': 'application/json', Cookie: cookie },
     body: JSON.stringify({
       topic: 'نقش هوش مصنوعی در آموزش آینده',
       audience: 'دانشجویان و معلمان',
@@ -52,7 +43,7 @@ async function main() {
     process.exit(1)
   }
 
-  const htmlRes = await fetch(`${BASE}/api/presentations/${genBody.deck.id}/html`, { headers: { Cookie: cookie2 } })
+  const htmlRes = await fetch(`${BASE}/api/presentations/${genBody.deck.id}/html`, { headers: { Cookie: cookie } })
   const html = await htmlRes.text()
 
   // 3) checks
@@ -78,7 +69,7 @@ async function main() {
   }
 
   // 4) slide-type variety inside generated deck — extract from JSON via overview titles? Use API list
-  const list = await fetch(`${BASE}/api/presentations`, { headers: { Cookie: cookie2 } })
+  const list = await fetch(`${BASE}/api/presentations`, { headers: { Cookie: cookie } })
   const listBody = await list.json().catch(() => ({}))
   console.log('library count:', listBody?.decks?.length)
 
@@ -90,3 +81,6 @@ async function main() {
 }
 
 main()
+
+/* این فایل را ماژول می‌کند تا با سایر اسکریپت‌های بدون import تداخل اسکوپ سراسری نگیرد */
+export {}
