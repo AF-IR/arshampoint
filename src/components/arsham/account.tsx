@@ -4,18 +4,31 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   UserCircle2, BookOpen, Layers, CalendarDays, LogOut,
-  ShieldCheck, Server, Sparkles, Mail,
+  ShieldCheck, Server, Sparkles, Mail, Zap, Crown,
 } from 'lucide-react'
+import Link from 'next/link'
 import { apiFetch, type SessionUser } from '@/lib/client-auth'
 import { navigate } from '@/hooks/use-hash-route'
 import { useSession } from '@/components/arsham/session'
 import { faDate, faNum, type DeckMeta } from '@/components/zslide/types'
 import { DeployGuideDialog } from '@/components/zslide/deploy-guide'
 
+/* وضعیت مصرف (پلن + سهمیه روزانه) — از /api/usage */
+interface UsageInfo {
+  plan: 'free' | 'pro'
+  used: number
+  quota: number
+  remaining: number
+  unlimited: boolean
+  periodEnd?: string | null
+  nextFreeAt?: string | null
+}
+
 /* صفحه «حساب من»: پروفایل + آمار استفاده + اقدامات حساب */
 
 export function AccountPage({ user }: { user: SessionUser }) {
   const [decks, setDecks] = useState<DeckMeta[]>([])
+  const [usage, setUsage] = useState<UsageInfo | null>(null)
   /* status + logout come from the shared session context —
    * no duplicate /api/status request per visit */
   const { status, logout } = useSession()
@@ -26,6 +39,12 @@ export function AccountPage({ user }: { user: SessionUser }) {
       .then(async (res) => (res.ok ? ((await res.json())?.decks ?? []) : []))
       .then((d) => {
         if (alive) setDecks(d)
+      })
+      .catch(() => undefined)
+    apiFetch('/api/usage')
+      .then(async (res) => (res.ok ? ((await res.json())?.usage ?? null) : null))
+      .then((u) => {
+        if (alive) setUsage(u)
       })
       .catch(() => undefined)
     return () => {
@@ -66,6 +85,59 @@ export function AccountPage({ user }: { user: SessionUser }) {
         </div>
       </section>
 
+      {/* plan & usage (تجاری‌سازی: وضعیت پلن و سهمیه) */}
+      {usage && (
+        <section className="rounded-3xl border border-white/10 bg-[#12141A] p-6 grid gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="font-black text-sm flex items-center gap-2">
+              {usage.plan === 'pro' ? (
+                <Crown className="w-4 h-4 text-[#FDD663]" />
+              ) : (
+                <Zap className="w-4 h-4 text-[#8AB4F8]" />
+              )}
+              پلن {usage.plan === 'pro' ? 'حرفه‌ای' : 'رایگان'}
+            </h3>
+            {usage.plan === 'pro' ? (
+              <span className="text-[11px] font-bold text-[#FDD663] bg-[#FDD663]/10 border border-[#FDD663]/30 rounded-full px-3 py-1">
+                فعال ✓ ارائه نامحدود{usage.periodEnd ? ` — تا ${faDate(usage.periodEnd)}` : ''}
+              </span>
+            ) : (
+              <Link
+                href="/pricing"
+                className="text-[11px] font-black bg-gradient-to-l from-[#4285F4] to-[#8AB4F8] text-[#0B0C0F] rounded-full px-3.5 py-1.5 hover:opacity-90 transition-opacity"
+              >
+                ارتقا به حرفه‌ای — نامحدود و بدون نشان برند
+              </Link>
+            )}
+          </div>
+          {usage.plan !== 'pro' && (
+            <div>
+              <div className="flex items-center justify-between text-xs text-[#9AA0A6] mb-2">
+                <span>مصرف روزانه (۲۴ ساعت گذشته)</span>
+                <span className="font-bold text-[#E8EAED]">
+                  {faNum(usage.used)} از {faNum(usage.quota)} ارائه
+                </span>
+              </div>
+              <div className="h-2.5 rounded-full bg-white/5 border border-white/10 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${usage.used >= usage.quota ? 'bg-[#F28B82]' : 'bg-gradient-to-l from-[#4285F4] to-[#8AB4F8]'}`}
+                  style={{ width: `${Math.min(100, (usage.used / usage.quota) * 100)}%` }}
+                />
+              </div>
+              {usage.used >= usage.quota && (
+                <p className="text-[11px] text-[#FFB75F] leading-6 mt-3 rounded-xl border border-[#FFB75F]/25 bg-[#FFB75F]/10 p-3">
+                  سهمیه امروز ({faNum(usage.quota)} ارائه) تمام شد.{' '}
+                  {usage.nextFreeAt
+                    ? `نزدیک‌ترین اسلات آزاد حدود ساعت ${new Date(usage.nextFreeAt).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })} در دسترس قرار می‌گیرد.`
+                    : 'هر ۲۴ ساعت سهمیه تازه می‌شود.'}{' '}
+                  یا همین حالا به پلن حرفه‌ای ارتقا دهید تا ارائه نامحدود بسازید.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* stats */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
@@ -99,7 +171,7 @@ export function AccountPage({ user }: { user: SessionUser }) {
             <p className="text-[#9AA0A6] mb-1.5">موتور هوش مصنوعی</p>
             <p className="font-bold flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-[#8AB4F8]" />
-              {status?.ai === 'http' ? `Z.ai API (${status.aiModel})` : 'SDK سندباکس'}
+              {status?.ai === 'http' ? `موتور هوش مصنوعی (${status.aiModel})` : 'SDK سندباکس'}
             </p>
           </div>
           <div className="rounded-xl border border-white/10 bg-white/[.03] p-4">

@@ -35,6 +35,17 @@ export function navigate(route: Route) {
   window.scrollTo({ top: 0 })
 }
 
+/* مثل navigate اما ورودی تاریخچه را «جایگزین» می‌کند نه اینکه یکی اضافه
+ * کند — برای گذارهای ورود/خروج و ریدایرکت‌های گارد تا دکمه Back مرورگر
+ * کاربر را به فرم لاگین یا مسیرهای مرده برنگرداند (شکایت «با بک می‌پره»). */
+export function replaceNavigate(route: Route) {
+  const hash = route ? `#/${route}` : '#/'
+  if (window.location.hash === hash) return
+  window.history.replaceState(null, '', hash)
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+  window.scrollTo({ top: 0 })
+}
+
 function subscribe(cb: () => void) {
   window.addEventListener('hashchange', cb)
   return () => window.removeEventListener('hashchange', cb)

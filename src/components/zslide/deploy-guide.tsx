@@ -76,7 +76,7 @@ export function DeployGuideDialog({ status }: { status: StatusInfo | null }) {
           </DialogTitle>
           <DialogDescription className="text-sm leading-7 text-[#9AA0A6]">
             وضعیت فعلی: {status?.mode === 'supabase' ? '✅ متصل به Supabase' : '⚠️ دموی محلی'} —
-            {' '}موتور هوش مصنوعی: {status?.ai === 'http' ? `Z.ai API (${status?.aiModel})` : 'SDK داخلی سندباکس'}
+            {' '}موتور هوش مصنوعی: {status?.ai === 'http' ? `سرویس ابری (${status?.aiModel})` : 'موتور داخلی سندباکس'}
           </DialogDescription>
         </DialogHeader>
 

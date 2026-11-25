@@ -3,10 +3,10 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { Loader2 } from 'lucide-react'
-import { useHashRoute, navigate, type Route } from '@/hooks/use-hash-route'
+import { useHashRoute, replaceNavigate, type Route } from '@/hooks/use-hash-route'
 import { AppHeader, PublicHeader, SiteFooter } from '@/components/arsham/site-chrome'
 import { SessionProvider, useSession } from '@/components/arsham/session'
-import { BRAND, TAGLINE } from '@/components/arsham/content'
+import { BRAND, TAGLINE, FAQS, SITE_URL } from '@/components/arsham/content'
 import { AuthView } from '@/components/zslide/auth-view'
 
 /* ─────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ function ViewLoading() {
 
 function FullLoading() {
   return (
-    <div className="min-h-screen grid place-items-center bg-[#0B0C10]" dir="rtl">
+    <div className="min-h-screen grid place-items-center bg-transparent" dir="rtl">
       <Loader2 className="w-7 h-7 animate-spin text-[#8AB4F8]" aria-label="بارگذاری" />
     </div>
   )
@@ -63,13 +63,25 @@ const ContactPage = dynamic(() => import('@/components/arsham/static-pages').the
 
 function BootScreen() {
   return (
-    <div className="min-h-screen grid place-items-center bg-[#0B0C10]" dir="rtl">
+    <div className="min-h-screen grid place-items-center bg-transparent" dir="rtl">
       <div className="flex flex-col items-center gap-4 text-[#9AA0A6]">
         <Loader2 className="w-8 h-8 animate-spin text-[#8AB4F8]" />
         <p className="text-sm font-bold">در حال بارگذاری آرشام پوینت…</p>
       </div>
     </div>
   )
+}
+
+/* FAQPage JSON-LD — exactly the 4 questions visible in the landing FAQ
+ * section (Google guideline: markup must match visible page content). */
+const homeFaqLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.slice(0, 4).map((f) => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
 }
 
 function Shell() {
@@ -81,10 +93,19 @@ function Shell() {
     document.title = route === '' ? TITLES[''] : `${TITLES[route]} | ${BRAND}`
   }, [route])
 
-  /* redirect protected routes to auth when signed out */
+  /* redirect protected routes to auth when signed out —
+   * replaceState تا Back بعداً به مسیر محافظت‌شده‌ی مرده برنگردد */
   useEffect(() => {
     if (phase === 'ready' && PROTECTED.has(route) && !user) {
-      navigate('auth')
+      replaceNavigate('auth')
+    }
+  }, [phase, route, user])
+
+  /* کاربر لاگین‌شده که با Back/بوکمارک می‌افتد روی #/auth — مستقیم به پنلش
+   * برمی‌گردد؛ این همان رفع شکایت «با بک می‌پره» است */
+  useEffect(() => {
+    if (phase === 'ready' && route === 'auth' && user) {
+      replaceNavigate('app')
     }
   }, [phase, route, user])
 
@@ -101,21 +122,31 @@ function Shell() {
         authMode={authMode}
         onAuthed={(u) => {
           setUser(u)
-          navigate('app')
+          /* replace به‌جای push: رکورد #/auth از تاریخچه پاک می‌شود تا
+           * Back بعد از ورود، کاربر را به لندینگ ببرد نه فرم لاگین */
+          replaceNavigate('app')
         }}
       />
     )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0B0C10]" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-transparent" dir="rtl">
       {authed && PROTECTED.has(route) ? (
         <AppHeader userName={user!.name || user!.email} onLogout={logout} />
       ) : (
         <PublicHeader authed={authed} />
       )}
 
-      {route === '' && <Landing authed={authed} />}
+      {route === '' && (
+        <>
+          <Landing authed={authed} />
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(homeFaqLd) }}
+          />
+        </>
+      )}
       {route === 'features' && <FeaturesPage />}
       {route === 'faq' && <FaqPage />}
       {route === 'about' && <AboutPage />}

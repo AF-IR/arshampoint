@@ -21,6 +21,7 @@ export function Dashboard({
   const [decks, setDecks] = useState<DeckMeta[]>([])
   const [loaded, setLoaded] = useState(false)
   const [generating, setGenerating] = useState<string | null>(null)
+  const [generatingWithImages, setGeneratingWithImages] = useState(false)
   const [preview, setPreview] = useState<DeckMeta | null>(null)
   const { toast } = useToast()
 
@@ -39,6 +40,7 @@ export function Dashboard({
 
   async function handleGenerate(payload: GeneratePayload) {
     setGenerating(payload.topic)
+    setGeneratingWithImages(payload.visualMode === 'image')
     try {
       const res = await apiFetch('/api/presentations', {
         method: 'POST',
@@ -61,6 +63,7 @@ export function Dashboard({
       })
     } finally {
       setGenerating(null)
+      setGeneratingWithImages(false)
     }
   }
 
@@ -76,7 +79,7 @@ export function Dashboard({
   }
 
   return (
-    <main className="flex-1 w-full max-w-6xl mx-auto px-5 py-8 grid gap-8" dir="rtl">
+    <main className="a-fade-up flex-1 w-full max-w-6xl mx-auto px-5 py-8 grid gap-8" dir="rtl">
       <section>
         <h1 className="text-2xl font-black">سلام {user.name || 'کاربر'} 👋</h1>
         <p className="text-sm text-[#9AA0A6] mt-2 leading-7">
@@ -105,7 +108,7 @@ export function Dashboard({
         </TabsContent>
       </Tabs>
 
-      {generating && <GeneratingOverlay topic={generating} />}
+      {generating && <GeneratingOverlay topic={generating} withImages={generatingWithImages} />}
       {preview && <PreviewOverlay deck={preview} onBack={() => setPreview(null)} />}
     </main>
   )

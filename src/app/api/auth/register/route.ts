@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       data: { email, name, passwordHash: hashPassword(password) },
     })
 
-    await setSessionCookie(signToken(user.id, user.email))
+    await setSessionCookie(signToken(user.id, user.email, user.name))
     return NextResponse.json({
       user: { id: user.id, email: user.email, name: user.name },
     })
